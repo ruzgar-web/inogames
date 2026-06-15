@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>inogames | World of Games</title>
+    
+    <meta name="description" content="The digital world of next-generation game developers. Discover games developed by inomaker Robotics Coding students.">
+    <meta property="og:title" content="inogames | World of Games">
+    <meta property="og:description" content="The digital world of next-generation game developers. Play games designed by inomaker students!">
+	<meta property="og:image" content="https://in0maker.github.io/inogames/Images/og-cover-photo.jpg">
+	<meta property="og:url" content="https://in0maker.github.io/inogames/">    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #ff4757;
+            --primary-glow: rgba(255, 71, 87, 0.3);
+            --secondary: #171923;
+            --bg: #0d0e12;
+            --card-bg: #1f2330;
+            --text-main: #ffffff;
+            --text-muted: #a4b0be;
+            --nav-bg: rgba(23, 25, 35, 0.85);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Navbar Style */
+        .navbar {
+            background: rgb(255 255 255);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 15px 5%;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .nav-logo-link {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Long and thin logo containers */
+        .brand-logo {
+            height: 60px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 35px;
+        }
+
+        .nav-links a {
+            color: #000000;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
+            transition: color 0.3s ease, transform 0.3s ease;
+            text-transform: uppercase;
+            position: relative;
+            padding: 5px 0;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background-color: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        /* Main Elements */
+        .main-container {
+            padding: 60px 5%;
+            flex: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 90%;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 1000;
+            margin-bottom: 30px;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* 2. Dynamic Filtering Buttons CSS Start */
+        .filter-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: var(--card-bg);
+            color: var(--text-muted);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 10px 22px;
+            border-radius: 30px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 5px 15px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .game-card.hide {
+            display: none !important;
+        }
+        /* Dynamic Filtering CSS End */
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 35px;
+        }
+
+        .game-card {
+            background: var(--card-bg);
+            border-radius: 18px;
+            overflow: hidden;
+            text-decoration: none;
+            color: white;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .game-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px var(--primary-glow);
+            border-color: rgba(255, 71, 87, 0.3);
+        }
+
+        .cover-wrapper {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            height: 210px;
+        }
+
+        .game-cover {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.5s ease;
+        }
+
+        .game-card:hover .game-cover {
+            transform: scale(1.08);
+        }
+
+        .game-info {
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%);
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .game-info h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: color 0.3s ease;
+        }
+
+        .game-card:hover .game-info h3 {
+            color: var(--primary);
+        }
+
+        .game-genre {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* About & Contact Section */
+        .info-section {
+            background: linear-gradient(135deg, #161922 0%, #11131a 100%);
+            padding: 80px 5%;
+            border-top: 3px solid var(--primary);
+            text-align: center;
+        }
+
+        .info-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .info-section h2 {
+            font-size: 2rem;
+            font-weight: 1000;
+            margin-bottom: 20px;
+            letter-spacing: 1px;
+        }
+
+        .developer-team {
+            font-size: 1.2rem;
+            color: var(--text-main);
+            font-weight: 500;
+            margin: 15px 0 25px 0;
+            letter-spacing: 0.5px;
+        }
+
+        .institution-tag {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+
+        .institution-tag strong {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* Contact Components */
+        .contact-divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            margin: 40px 0;
+        }
+
+        .contact-grid {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease, transform 0.3s ease;
+            font-size: 1.05rem;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 12px 24px;
+            border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .contact-item:hover {
+            color: var(--primary);
+            transform: translateY(-3px);
+            background: rgba(255, 71, 87, 0.05);
+            border-color: rgba(255, 71, 87, 0.2);
+        }
+
+        /* Footer */
+        footer {
+            background: #090a0d;
+            padding: 30px 20px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255, 255, 255, 0.02);
+            line-height: 1.6;
+        }
+
+        footer p {
+            max-width: 1000px;
+            margin: 0 auto;
+            letter-spacing: 0.5px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .nav-links {
+                order: 3;
+                width: 100%;
+                justify-content: center;
+                gap: 20px;
+            }
+            .brand-logo {
+                height: 35px;
+            }
+            .contact-grid {
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            }
+            .contact-item {
+                width: 80%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="https://inomakeratolyesi.github.io/inogames/">
+                <img src="Images/inogames.png" alt="inogames logo" class="brand-logo">
+            </a>
+
+            <div class="nav-links">
+                <a href="#games">Games</a>
+                <a href="#about">About Us</a>
+                <a href="#contact">Contact</a>
+            </div>
+
+            <a href="https://www.inomaker.com/" target="_blank" class="nav-logo-link">
+                <img src="Images/inomaker.png" alt="inomaker logo" class="brand-logo">
+            </a>
+        </div>
+    </nav>
+
+    <div class="main-container" id="games">
+        <h2 class="section-title">Our Games</h2>
+
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="adventure">Action & Adventure</button>
+            <button class="filter-btn" data-filter="sports">Sports & Racing</button>
+            <button class="filter-btn" data-filter="puzzle">Puzzle & Brain</button>
+            <button class="filter-btn" data-filter="horror">Horror</button>
+            <button class="filter-btn" data-filter="casual">Casual & Fun</button>
+        </div>
+        <div class="game-grid">
+            
+            <a href="OurGames/Backrooms/index.html" class="game-card" data-category="horror">
+                <div class="cover-wrapper">
+                    <img src="Images/Backrooms.png" alt="Backrooms" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Backrooms</h3>
+                    <p class="game-genre">Horror</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Blocks Blast/index.html" class="game-card" data-category="puzzle">
+                <div class="cover-wrapper">
+                    <img src="Images/Blocks Blast.png" alt="Blocks Blast" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Blocks Blast</h3>
+                    <p class="game-genre">Puzzle</p>
+                </div>
+            </a>
+
+            <a href="OurGames/99 Nights/index.html" class="game-card" data-category="adventure">
+                <div class="cover-wrapper">
+                    <img src="Images/99 Nights.png" alt="99 Nights" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>99 Nights</h3>
+                    <p class="game-genre">Action</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Handy Smash/index.html" class="game-card" data-category="sports">
+                <div class="cover-wrapper">
+                    <img src="Images/Handy Smash.png" alt="Handy Smash" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Handy Smash</h3>
+                    <p class="game-genre">Sports</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Clicker/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Clicker.png" alt="Clicker" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Clicker</h3>
+                    <p class="game-genre">Mouse Game</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Rocket Flight/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Rocket Flight.png" alt="Rocket Flight" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Rocket Flight</h3>
+                    <p class="game-genre">Mouse Game</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Memory Rhythm/index.html" class="game-card" data-category="puzzle">
+                <div class="cover-wrapper">
+                    <img src="Images/Memory Rhythm.png" alt="Memory Rhythm" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Memory Rhythm</h3>
+                    <p class="game-genre">Brain Game</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Bird Basketball/index.html" class="game-card" data-category="sports">
+                <div class="cover-wrapper">
+                    <img src="Images/Bird Basketball.png" alt="Bird Basketball" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Bird Basketball</h3>
+                    <p class="game-genre">Sports</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Galactic Terminal/index.html" class="game-card" data-category="adventure">
+                <div class="cover-wrapper">
+                    <img src="Images/Galactic Terminal.png" alt="Galactic Terminal" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Galactic Terminal</h3>
+                    <p class="game-genre">Sci-Fi</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Gario/index.html" class="game-card" data-category="adventure">
+                <div class="cover-wrapper">
+                    <img src="Images/Gario.png" alt="Gario" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Gario</h3>
+                    <p class="game-genre">Platformer</p>
+                </div>
+            </a>
+
+            <a href="OurGames/F1 Race/index.html" class="game-card" data-category="sports">
+                <div class="cover-wrapper">
+                    <img src="Images/F1 Race.png" alt="F1 Race" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>F1 Race</h3>
+                    <p class="game-genre">Racing</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Tower Defence/index.html" class="game-card" data-category="adventure">
+                <div class="cover-wrapper">
+                    <img src="Images/Tower Defence.png" alt="Tower Defence" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Tower Defence</h3>
+                    <p class="game-genre">Strategy</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Bunker Monitoring/index.html" class="game-card" data-category="horror">
+                <div class="cover-wrapper">
+                    <img src="Images/Bunker Monitoring.png" alt="Bunker Monitoring" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Bunker Monitoring</h3>
+                    <p class="game-genre">Horror</p>
+                </div>
+            </a>
+			
+			<a href="OurGames/Uno/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Uno.png" alt="Uno" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Uno</h3>
+                    <p class="game-genre">Card Game</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Basketball/index.html" class="game-card" data-category="sports">
+                <div class="cover-wrapper">
+                    <img src="Images/Basketball.png" alt="Basketball" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Basketball</h3>
+                    <p class="game-genre">Sports</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Stickman/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Stickman.png" alt="Stickman" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Stickman</h3>
+                    <p class="game-genre">Hyper Casual</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Pokemon/index.html" class="game-card" data-category="adventure">
+                <div class="cover-wrapper">
+                    <img src="Images/Pokemon.png" alt="Pokemon" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Pokemon</h3>
+                    <p class="game-genre">RPG</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Square Pass/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Square Pass.png" alt="Square Pass" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Square Pass</h3>
+                    <p class="game-genre">Mouse Game</p>
+                </div>
+            </a>
+
+            <a href="OurGames/Noel Dino Game/index.html" class="game-card" data-category="casual">
+                <div class="cover-wrapper">
+                    <img src="Images/Noel Dino Game.png" alt="Noel Dino Game" class="game-cover">
+                </div>
+                <div class="game-info">
+                    <h3>Noel Dino Game</h3>
+                    <p class="game-genre">Endless Runner</p>
+                </div>
+            </a>
+
+        </div>
+    </div>
+
+    <section class="info-section" id="about">
+        <div class="info-container">
+            <p>This website was developed by talented middle school students from the inomaker Robotics Coding.</p>
+
+        <h2 style="color: var(--primary);">🚀 Young Visionaries</h2>
+        <div class="developer-team">
+            <p><strong>Deniz Rüzgar Yıldız</strong> <span style="font-size: 0.8rem; opacity: 0.7;">(6th Grade)</span></p>
+            <p><strong>Atilla Kaan Demir</strong> <span style="font-size: 0.8rem; opacity: 0.7;">(7th Grade)</span></p>
+            <p><strong>Mehmet Pars Haytoğlu</strong> <span style="font-size: 0.8rem; opacity: 0.7;">(7th Grade)</span></p>
+        </div>
+
+            <p>These young developers showcased their own projects using Unity, HTML5, CSS3, and JavaScript, leveraging the power of Artificial Intelligence. By combining their coding skills with modern AI tools, they are not just playing games; they are building the future of digital entertainment.</p>
+            
+            <h2 style="color: var(--primary);">👥 Developer Team</h2>
+
+            <p class="developer-team">Deniz Rüzgar Yıldız • Atilla Kaan Demir • Mehmet Pars Haytoğlu</p>
+            <p class="institution-tag">Institution: <strong>inomaker Robotics Coding</strong></p>
+        
+            <div class="contact-divider" id="contact"></div>
+            
+            <div class="contact-grid">
+                <a href="https://www.instagram.com/inomaker/" target="_blank" class="contact-item">
+                    <span>📸 Instagram: @inomaker</span>
+                </a>
+                <a href="mailto:bilgi@inomaker.com" class="contact-item">
+                    <span>✉️ Email: bilgi@inomaker.com</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>© 2026 inomaker Robotics Coding. All rights reserved.</p> 
+        <p>The games on this platform were created by our students.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            const gameCards = document.querySelectorAll('.game-card');
+
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Remove active class from all buttons
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    // Add active class to the clicked button
+                    btn.classList.add('active');
+
+                    const filterValue = btn.getAttribute('data-filter');
+
+                    // Show or hide cards based on category
+                    gameCards.forEach(card => {
+                        if (filterValue === 'all' || card.getAttribute('data-category') === filterValue) {
+                            card.classList.remove('hide');
+                        } else {
+                            card.classList.add('hide');
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+    </body>
+</html>
