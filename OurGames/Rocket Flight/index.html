@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocket Flight</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #050508;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.3);
+        }
+        #scoreBoard {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            padding: 10px 25px;
+            border-radius: 8px;
+            border: 2px solid #ff4757;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            display: none;
+        }
+        #gameOverScreen h1 {
+            color: #ff4757;
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        #gameOverScreen p {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        #restartBtn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        #restartBtn:hover {
+            background: #ff6b81;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <div id="scoreBoard">Score: <span id="scoreVal">0</span></div>
+        <canvas id="gameCanvas" width="900" height="550"></canvas>
+        
+        <div id="gameOverScreen">
+            <h1>Game Over!</h1>
+            <p>Your Score: <span id="finalScore">0</span> Second</p>
+            <button id="restartBtn" onclick="resetGame()">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreVal = document.getElementById("scoreVal");
+        const finalScore = document.getElementById("finalScore");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+
+        // Oyun Ayarları ve Renkler
+        const BORDER_COLOR = "#ff4757"; // Çerçeve rengi
+        const METEOR_COLOR = "#ffa502"; // Meteor rengi
+        const BORDER_THICKNESS = 16;
+
+        let score = 0;
+        let scoreInterval;
+        let gameOver = false;
+        let stars = [];
+        let meteors = [];
+
+        // Fare Pozisyonu
+        let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+        // Yeni Kontrol Mekaniğine Uygun Roket Yapısı
+        let rocket = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            speedModifier: 0.035, // Takip hassasiyeti (Hızı buradan ince ayar yapabilirsin)
+            angle: 0,
+            radius: 14            // Çarpışma hassasiyeti yarıçapı
+        };
+
+        // Yıldız Arkaplanı Oluşturma
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 60; i++) {
+                stars.push({
+                    x: Math.random() * (canvas.width - BORDER_THICKNESS * 2) + BORDER_THICKNESS,
+                    y: Math.random() * (canvas.height - BORDER_THICKNESS * 2) + BORDER_THICKNESS,
+                    size: Math.random() * 2
+                });
+            }
+        }
+
+        // Meteor Oluşturma
+        function createMeteor() {
+            let radius = Math.random() * 20 + 15;
+            let x, y;
+            
+            do {
+                x = Math.random() * (canvas.width - BORDER_THICKNESS * 2 - radius * 2) + BORDER_THICKNESS + radius;
+                y = Math.random() * (canvas.height - BORDER_THICKNESS * 2 - radius * 2) + BORDER_THICKNESS + radius;
+            } while (Math.hypot(x - rocket.x, y - rocket.y) < 150);
+
+            let vx = (Math.random() - 0.5) * 4;
+            let vy = (Math.random() - 0.5) * 4;
+            
+            if(Math.abs(vx) < 0.5) vx += 1;
+            if(Math.abs(vy) < 0.5) vy += 1;
+
+            return { x, y, radius, vx, vy };
+        }
+
+        function initMeteors() {
+            meteors = [];
+            for (let i = 0; i < 8; i++) {
+                meteors.push(createMeteor());
+            }
+        }
+
+        // Fare hareketini dinle
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        // Paylaşılan Yeni Resimdeki 2D Roket Tasarımı
+        function drawRocket() {
+            ctx.save();
+            ctx.translate(rocket.x, rocket.y);
+            ctx.rotate(rocket.angle);
+
+            // 1. Kırmızı Üçgen Motor Ateşi (Arka Kısım)
+            ctx.beginPath();
+            ctx.moveTo(-8, 0);
+            ctx.lineTo(-14, -6);
+            ctx.lineTo(-26, 0); // Ateşin ucu
+            ctx.lineTo(-14, 6);
+            ctx.closePath();
+            ctx.fillStyle = "#e81e51"; // Görseldeki kırmızı/pembe tonu
+            ctx.fill();
+
+            // 2. Mavi Roket Gövdesi (Basit 2D Geometrik Şekil)
+            ctx.beginPath();
+            ctx.moveTo(24, 0);       // Burun ucu
+            ctx.lineTo(10, -7);      // Üst gövde kıvrımı başlangıcı
+            ctx.lineTo(-14, -13);    // Sol arka kanat ucu
+            ctx.lineTo(-8, 0);       // Arka girinti orta nokta
+            ctx.lineTo(-14, 13);     // Sağ arka kanat ucu
+            ctx.lineTo(10, 7);       // Alt gövde kıvrımı başlangıcı
+            ctx.closePath();
+            ctx.fillStyle = "#5acfde"; // Görseldeki turkuaz/açık mavi tonu
+            ctx.fill();
+            
+            // Kontür Çizgisi (Çizim tarzını sabitlemek için hafif belirgin kenarlık)
+            ctx.strokeStyle = "#2c3e50";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // 3. İki Küçük Siyah Nokta/Göz Detayı
+            ctx.beginPath();
+            ctx.arc(8, -3, 1.2, 0, Math.PI * 2);
+            ctx.arc(8, 3, 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = "#000000";
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // Meteor Çiz (Altıgen)
+        function drawMeteor(m) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                let angle = (i * 2 * Math.PI) / 6;
+                let mx = m.x + Math.cos(angle) * m.radius;
+                let my = m.y + Math.sin(angle) * m.radius;
+                if (i === 0) ctx.moveTo(mx, my);
+                else ctx.lineTo(mx, my);
+            }
+            ctx.closePath();
+            ctx.fillStyle = METEOR_COLOR;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = METEOR_COLOR;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // Çerçeve Çizimi
+        function drawBorders() {
+            ctx.lineWidth = BORDER_THICKNESS;
+            ctx.strokeStyle = BORDER_COLOR;
+            ctx.strokeRect(BORDER_THICKNESS/2, BORDER_THICKNESS/2, canvas.width - BORDER_THICKNESS, canvas.height - BORDER_THICKNESS);
+        }
+
+        // Fizik ve Mantık Güncellemeleri
+        function update() {
+            if (gameOver) return;
+
+            // Mesafe Tabanlı Yeni Kontrol Mekaniği
+            let dx = mouse.x - rocket.x;
+            let dy = mouse.y - rocket.y;
+            let distance = Math.hypot(dx, dy);
+
+            // Fare imlecinin açısına dön (Sadece fare hareket ederken titremeyi önlemek için)
+            if (distance > 2) {
+                rocket.angle = Math.atan2(dy, dx);
+            }
+
+            // Mesafe ne kadar çoksa o kadar hızlı, ne kadar yakınsa o kadar yavaş gider (Kayma yapmaz)
+            rocket.x += dx * rocket.speedModifier;
+            rocket.y += dy * rocket.speedModifier;
+
+            // --- ÇARPIŞMALAR ---
+
+            // 1. Çerçeve Çarpışması
+            if (rocket.x - rocket.radius < BORDER_THICKNESS || 
+                rocket.x + rocket.radius > canvas.width - BORDER_THICKNESS ||
+                rocket.y - rocket.radius < BORDER_THICKNESS || 
+                rocket.y + rocket.radius > canvas.height - BORDER_THICKNESS) {
+                endGame();
+            }
+
+            // 2. Meteor Hareketleri ve Sektirme
+            meteors.forEach(m => {
+                m.x += m.vx;
+                m.y += m.vy;
+
+                if (m.x - m.radius <= BORDER_THICKNESS) {
+                    m.x = BORDER_THICKNESS + m.radius;
+                    m.vx *= -1;
+                } else if (m.x + m.radius >= canvas.width - BORDER_THICKNESS) {
+                    m.x = canvas.width - BORDER_THICKNESS - m.radius;
+                    m.vx *= -1;
+                }
+
+                if (m.y - m.radius <= BORDER_THICKNESS) {
+                    m.y = BORDER_THICKNESS + m.radius;
+                    m.vy *= -1;
+                } else if (m.y + m.radius >= canvas.height - BORDER_THICKNESS) {
+                    m.y = canvas.height - BORDER_THICKNESS - m.radius;
+                    m.vy *= -1;
+                }
+
+                // 3. Roket-Meteor Çarpışması
+                let distToMeteor = Math.hypot(rocket.x - m.x, rocket.y - m.y);
+                if (distToMeteor < rocket.radius + m.radius - 2) {
+                    endGame();
+                }
+            });
+        }
+
+        // Çizim Döngüsü
+        function draw() {
+            ctx.fillStyle = "#050508";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Yıldızlar
+            ctx.fillStyle = "#ffffff";
+            stars.forEach(s => {
+                ctx.fillRect(s.x, s.y, s.size, s.size);
+            });
+
+            meteors.forEach(drawMeteor);
+            drawRocket();
+            drawBorders();
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (!gameOver) {
+                requestAnimationFrame(loop);
+            }
+        }
+
+        function endGame() {
+            gameOver = true;
+            clearInterval(scoreInterval);
+            finalScore.innerText = score;
+            gameOverScreen.style.display = "flex";
+        }
+
+        function resetGame() {
+            score = 0;
+            gameOver = false;
+            scoreVal.innerText = score;
+            gameOverScreen.style.display = "none";
+            
+            rocket.x = canvas.width / 2;
+            rocket.y = canvas.height / 2;
+            mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+            initStars();
+            initMeteors();
+
+            clearInterval(scoreInterval);
+            scoreInterval = setInterval(() => {
+                if (!gameOver) {
+                    score++;
+                    scoreVal.innerText = score;
+                }
+            }, 1000);
+
+            loop();
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>

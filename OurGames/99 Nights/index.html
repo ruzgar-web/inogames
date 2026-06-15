@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>99 Nights - The Knight & The Chef</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        
+        #ui { position: absolute; bottom: 90px; left: 20px; color: #00ff00; pointer-events: none; text-shadow: 2px 2px 2px #000; font-weight: bold; }
+        #statsUI { position: absolute; top: 20px; left: 20px; font-size: 22px; font-weight: bold; pointer-events: none; text-shadow: 2px 2px 2px #000; }
+        #campfireUI { color: #ffaa00; margin-bottom: 5px; transition: 0.3s; }
+        #hungerUI { color: #ff4444; }
+        
+        #playerHealthUI { position: absolute; top: 20px; right: 20px; font-size: 26px; font-weight: bold; color: #ff2222; text-shadow: 2px 2px 4px #000; pointer-events: none; text-align: right;}
+        #armorUI { color: #aaaaaa; font-size: 18px; display: none; margin-top: 5px;}
+
+        #machineSign { position: absolute; top: 70px; right: 20px; background: rgba(40, 20, 10, 0.85); color: #ffebcd; padding: 15px; border: 3px solid #5c3a21; border-radius: 8px; font-size: 18px; font-weight: bold; text-shadow: 1px 1px #000; pointer-events: none; min-width: 150px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+        #machineSign h3 { margin: 0 0 10px 0; color: #ffa500; text-align: center; border-bottom: 1px solid #774b2b; padding-bottom: 5px; }
+
+        #keseUI { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); background: rgba(139, 69, 19, 0.9); color: white; padding: 8px 15px; border-radius: 15px; border: 2px solid #cd853f; font-weight: bold; pointer-events: none; font-size: 14px; text-shadow: 1px 1px #000; text-align: center; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        
+        #msgUI { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); color: #ffff00; font-size: 28px; font-weight: bold; text-shadow: 3px 3px 5px #000; display: none; pointer-events: none; text-align: center; z-index: 10; }
+        #holoUI { position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%); color: #add8e6; font-size: 18px; font-weight: bold; text-shadow: 2px 2px #000; display: none; pointer-events: none; text-align: center; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; border: 1px solid #add8e6;}
+        
+        #hotbar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
+        .slot { width: 70px; height: 70px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; color: white; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: bold; font-size: 14px; border-radius: 8px; text-shadow: 1px 1px 2px #000; transition: 0.1s; }
+        .slot.active { border-color: #ffff00; background-color: rgba(50, 50, 0, 0.9); transform: scale(1.15); box-shadow: 0 0 15px #ffff0066; }
+
+        .game-menu { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(30, 30, 30, 0.95); border: 4px solid #555; border-radius: 10px; padding: 25px; color: white; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,0.9); z-index: 100; min-width: 350px; }
+        .game-menu h2 { margin-top: 0; color: #ffaa00; text-shadow: 1px 1px 0 #000; border-bottom: 2px solid #555; padding-bottom: 10px;}
+        .menu-btn { background-color: #444; color: white; border: 2px solid #777; padding: 12px 15px; margin: 6px; cursor: pointer; font-weight: bold; border-radius: 5px; transition: 0.2s; font-family: 'Courier New', Courier, monospace; font-size: 15px; width: 100%; box-sizing: border-box; }
+        .menu-btn:hover { background-color: #666; border-color: #fff; transform: scale(1.02); }
+        .craft-btn { background-color: #2e5c2e; }
+        .craft-btn:hover { background-color: #4caf50; }
+        .blueprint-btn { background-color: #1e3a5f; border-color: #add8e6; }
+        .blueprint-btn:hover { background-color: #2a5288; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background-color: rgba(255, 255, 255, 0.9); border: 1px solid #000; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; transition: 0.2s;}
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h2>99 NIGHTS</h2>
+        <p>Keys: Slots 1-7 | Right-click (Pouch): Collect / Light a Fire / Add to Cauldron<br>
+        <span style="color:#ff4444;">Weapon (6): Right Click = Aim | Left Click = Fire</span><br>
+        <span style="color:#ffaa00;">E Key: Eat | Space: Glide and Jump</span></p>
+    </div>
+
+    <div id="playerHealthUI">
+        Life: 100 ♥
+        <div id="armorUI">🛡️ Armored</div>
+    </div>
+
+    <div id="statsUI">
+        <div id="campfireUI">Campfire: 100</div>
+        <div id="hungerUI">Hunger: 100</div>
+    </div>
+    
+    <div id="machineSign">
+        <h3>Grinder Storage</h3>
+        Wood: <span id="m_wood">0</span><br>
+        Stone: <span id="m_stone">0</span><br>
+        Paper: <span id="m_paper">0</span><br>
+        Leather: <span id="m_leather">0</span><br>
+        Meat: <span id="m_meat">0</span><br>
+        Carrot: <span id="m_carrot">0</span><br>
+        <span style="color:#aaa;">Iron: <span id="m_iron">0</span></span>
+    </div>
+
+    <div id="keseUI">The Bag's Contents: Empty</div>
+    <div id="msgUI">Warning!</div>
+    <div id="holoUI">BUILDING PLAN</div>
+
+    <div id="hotbar">
+        <div id="slot1" class="slot active">1<br>Axe</div>
+        <div id="slot2" class="slot" style="border-color:#cd853f; color:#ffdead;">2<br>Bag</div>
+        <div id="slot3" class="slot" style="display:none;">3<br>Spear</div>
+        <div id="slot4" class="slot" style="display:none;">4<br>Pickaxe</div>
+        <div id="slot5" class="slot" style="display:none; border-color:#add8e6; color:#add8e6;">5<br>Plan(0)</div>
+        <div id="slot6" class="slot" style="display:none; border-color:#ff4444; color:#ff4444;">6<br>Pistol</div>
+        <div id="slot7" class="slot" style="display:none; border-color:#aaa; color:#fff;">7<br>Sword</div>
+        <div id="slot8" class="slot" style="border-color:#fff; color:#fff;">8<br>Empty Hand</div>
+    </div>
+
+    <div id="craftingMenu" class="game-menu">
+        <h2>Craft Table</h2>
+        <button class="menu-btn craft-btn" onclick="craft('armor')" style="background-color:#5c3a21;">Wolf Armor (3 Wolf Hides)</button>
+        <button class="menu-btn craft-btn" onclick="craft('blueprint')" style="background-color:#1e3a5f;">Plan/Blueprint (2 Paper)</button>
+        <button class="menu-btn craft-btn" onclick="craft('spear')">Spear (2 Wood)</button>
+        <button class="menu-btn craft-btn" onclick="craft('pickaxe')">Pickaxe (4 Wood)</button> 
+        <button class="menu-btn" onclick="closeUI()" style="margin-top: 15px;">Close</button>
+    </div>
+
+    <div id="anvilMenu" class="game-menu">
+        <h2>ANVIL / BLACKSMITH</h2>
+        <button class="menu-btn craft-btn" onclick="upgradeToIronArmor()" style="background-color:#555555; border-color:#999;">Craft Iron Armor (Requirements: Wolf Armor + 1 Iron)</button>
+        <button class="menu-btn" onclick="closeUI()" style="margin-top: 15px; background-color:#880000;">Cancel</button>
+    </div>
+
+    <div id="blueprintMenu" class="game-menu">
+        <h2>PLAN SELECTION</h2>
+        <button class="menu-btn blueprint-btn" onclick="selectBlueprint('chest')">Chest Blueprint (5 Wood, 2 Stone)</button>
+        <button class="menu-btn blueprint-btn" onclick="selectBlueprint('hut')">Little Cabin (20 Wood)</button>
+        <button class="menu-btn blueprint-btn" onclick="selectBlueprint('machine')">Additional Machine (2 Wood, 5 Stone)</button>
+        <button class="menu-btn blueprint-btn" onclick="selectBlueprint('pot')" style="background-color:#cc5500;">Cooking Pot (2 Stones, 1 Scrap Metal)</button>
+        <button class="menu-btn" onclick="closeUI()" style="margin-top: 15px; background-color:#880000;">Cancel</button>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        const MAP_RADIUS = 120; 
+        const MAP_LIMIT = MAP_RADIUS - 0.5;
+        const SAFE_ZONE_RADIUS = 16;
+        const GRASS_COUNT = 15000; 
+
+        let scene, camera, renderer, player, floor;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let direction = new THREE.Vector3();
+        
+        let velocityY = 0;
+        let isJumping = false;
+
+        let activeSlot = 1; 
+        let isSwinging = false; let swingProgress = 0;
+        let isUIOpen = false; 
+        let isLeftMouseDown = false; let holdTimer = 0;
+        let currentPlacementHolo = null;
+        let grabbedItem = null;
+
+        let isAiming = false;
+        let recoilAmount = 0;
+        let pistolFlash;
+        let audioCtx;
+
+        let tools = { spear: 0, pickaxe: 0, blueprint: 0, ironPickaxe: 0, pistol: 0, knightSword: 0 };
+        let keseContents = { wood: 0, stone: 0, meat: 0, leather: 0, carrot: 0, coal: 0, wolfHide: 0, ironScrap: 0, soup: 0 }; 
+        let machineStorage = { wood: 0, stone: 0, meat: 0, leather: 0, paper: 0, carrot: 0, iron: 0 }; 
+        
+        let interactableObjects = []; droppedItems = []; treesData = []; animals = []; let wolves = [];
+        let cages = []; let pots = []; 
+
+        let campfireHealth = 100; 
+        let playerHunger = 100; 
+        let playerHP = 100;
+        let isDead = false; let hasWolfArmor = false; let hasIronArmor = false;
+        let campfireGroup, fireLight, axeGroup, spearGroup, pickaxeGroup, ironPickaxeGroup, keseGroup, blueprintGroup, pistolGroup, knightSwordGroup; let fireParticles = [], craftParticles = []; let coalContainerGroup;
+        let lastTime = Date.now(); 
+
+        const fireTexture = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAllBMVEUAAAD///8zMzNmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmbUki2vAAAANXRSTlMAAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyM6I9W/gAAAAJcEhZcwAACxMAAAsTAQCanBgAAAFqSURBVHja7ZbZkoMwDEWpCQQIYxZms7T//8uF4iTM0HbafrhP9400siVbCMLvV9Fh4gC4b4sOEwe4+gQcIg6QdQ4QIg5A2wU4RBzA2hFwiDiAtQGgEHGAay8BhogD+H4EGCIO8H0EGCIOYNtPgEHEAb6dAYaIA9hWAgwRB/D9DDBEHMC2M8Ag4gDffgIMEQfwdgYYIg7g7QwwRBzAthNgiDiAbWfAEOIAvp0BhogD2FYCDBEH8O0MMEQcwLeXAEOIA3g7AwwRB/D9DDBEHMC2E2CIOMC3M8AQcQDffgIMEQfwdgYYIg5gWwkwhDiAb2eAIeIAtp0AQ8QBfDsDDBEHsO0MMEQcwLcywBDiANaOAEOIA9g6AgwRB7h2AwwRB7D6BBgiDlB1DhAiDkDbBThEHMDWEXCIOICtE+AQcYDvT4Ah4gAfP4BDxAGuDQCHiAPc2gEOEQf4tQM4RBwA/0cAh4gD9D8COEQc4A8Yf0WHiQO0Y0WHiQP8ADv1M3oXgR5MAAAAAElFTkSuQmCC'); 
+        
+        function playShootSound() { 
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume(); 
+            let osc = audioCtx.createOscillator(); let gainNode = audioCtx.createGain(); 
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.1); 
+            gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); 
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } 
+        
+        function isInInn(x, z) { 
+            return (x > -36 && x < -14 && z > -36 && z < -14);
+        } 
+        
+        function getRandomValidPos(minR, maxR) { 
+            let x, z; do { 
+                let r = Math.sqrt(Math.random()) * (maxR - minR) + minR;
+                let theta = Math.random() * 2 * Math.PI; x = r * Math.cos(theta); z = r * Math.sin(theta);
+            } while (isInInn(x, z) || Math.hypot(x - 20, z - (-30)) < 8 || Math.hypot(x - 40, z - (-40)) < 8); return {x, z}; 
+        } 
+        
+        init(); animate(); 
+        
+        window.closeUI = function() { 
+            document.getElementById('craftingMenu').style.display = 'none';
+            document.getElementById('blueprintMenu').style.display = 'none'; 
+            document.getElementById('anvilMenu').style.display = 'none'; 
+            isUIOpen = false; 
+            if(document.body && !isDead) document.body.requestPointerLock(); 
+        };
+        
+        window.craft = function(type) {
+            let success = false;
+            if (type === 'armor' && keseContents.wolfHide >= 3) { 
+                if(hasIronArmor) { showMessage("You already have better armor!", "#ff0000"); return; } 
+                keseContents.wolfHide -= 3;
+                hasWolfArmor = true; success = true; 
+                document.getElementById('armorUI').style.display = 'block'; 
+                document.getElementById('armorUI').innerText = "🛡️ Wolf Armor (Damage: Reduced)";
+                showMessage("The Wolf Armor Has Been Created!", "#aaaaaa");
+            }
+            else if (type === 'blueprint' && machineStorage.paper >= 2) { machineStorage.paper -= 2;
+                tools.blueprint += 1; success = true; }
+            else if (type === 'spear' && machineStorage.wood >= 2) { machineStorage.wood -= 2;
+                tools.spear = 1; success = true; }
+            else if (type === 'pickaxe' && machineStorage.wood >= 4) { machineStorage.wood -= 4;
+                tools.pickaxe = 1; success = true; }
+            
+            if(success) { spawnCraftingParticles(new THREE.Vector3(3, 1.2, 3)); updateUI(); } 
+            else { showMessage("We don't have enough materials! (The leather pouch is here; the rest should be in the machine.)", "#ff0000"); }
+        };
+
+        window.upgradeToIronArmor = function() {
+            if (hasWolfArmor && machineStorage.iron >= 1) {
+                hasWolfArmor = false; hasIronArmor = true; machineStorage.iron -= 1;
+                document.getElementById('armorUI').style.display = 'block'; 
+                document.getElementById('armorUI').innerText = "🛡️ Iron Armor (Maximum Protection!)";
+                document.getElementById('armorUI').style.color = "#ffffff";
+                document.getElementById('armorUI').style.textShadow = "0 0 5px #aaa";
+                showMessage("Armor Upgraded: IRON ARMOR!", "#ffffff");
+                updateUI(); closeUI(); spawnCraftingParticles(player.position);
+            } else {
+                showMessage("You must have Wolf Armor equipped and 1 Iron in your inventory!", "#ff0000");
+            }
+        };
+
+        window.selectBlueprint = function(type) { if(tools.blueprint > 0) { tools.blueprint--; updateUI(); closeUI(); createPlacementHologram(type); } };
+
+        function createPlacementHologram(type) {
+            let holoGeo, reqW, reqS, reqI = 0, yPos;
+            if(type === 'chest') { holoGeo = new THREE.BoxGeometry(1.2, 0.8, 0.8); reqW = 5; reqS = 2; yPos = 0.4; }
+            else if(type === 'hut') { holoGeo = new THREE.BoxGeometry(4.2, 3, 4.2); reqW = 20; reqS = 0; yPos = 1.5; }
+            else if(type === 'machine') { holoGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5); reqW = 2; reqS = 5; yPos = 0.75; }
+            else if(type === 'pot') { holoGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.5, 16); reqW = 0; reqS = 2; reqI = 1; yPos = 0.5; }
+            
+            let holoMat = new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true, opacity: 0.5});
+            currentPlacementHolo = new THREE.Mesh(holoGeo, holoMat); 
+            currentPlacementHolo.userData = { isHologram: true, type: type, reqWood: reqW, reqStone: reqS, reqIronScrap: reqI, yOffset: yPos };
+            scene.add(currentPlacementHolo);
+        }
+
+        function showMessage(text, color="#ffff00", stay=false) { 
+            let msgBox = document.getElementById('msgUI');
+            msgBox.innerHTML = text; msgBox.style.color = color; msgBox.style.display = 'block'; 
+            if(!stay) { setTimeout(() => { if(!currentPlacementHolo && !isDead) msgBox.style.display = 'none'; }, 3000); }
+        }
+        
+        function eatFood() {
+            if(isDead || currentPlacementHolo) return;
+            if (keseContents.soup > 0) { keseContents.soup--; playerHunger = Math.min(100, playerHunger + 50); playerHP = Math.min(100, playerHP + 20); showMessage("You drank some soup! (+50 Hunger, +20 Health)", "#00ff00"); }
+            else if (keseContents.meat > 0) { keseContents.meat--; playerHunger = Math.min(100, playerHunger + 20); playerHP = Math.min(100, playerHP + 15); showMessage("You Ate Meat! (+20 Hunger, +15 Health)"); } 
+            else if (keseContents.carrot > 0) { keseContents.carrot--; playerHunger = Math.min(100, playerHunger + 10); playerHP = Math.min(100, playerHP + 5); showMessage("You Ate a Carrot! (+10 Hunger, +5 Health)"); } 
+            else { showMessage("You've got no food in your bag!"); return; } updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('m_wood').innerText = machineStorage.wood;
+            document.getElementById('m_stone').innerText = machineStorage.stone; document.getElementById('m_paper').innerText = machineStorage.paper; document.getElementById('m_leather').innerText = machineStorage.leather;
+            document.getElementById('m_meat').innerText = machineStorage.meat; document.getElementById('m_carrot').innerText = machineStorage.carrot; document.getElementById('m_iron').innerText = machineStorage.iron;
+            let kStr = []; 
+            if(keseContents.wood > 0) kStr.push(`${keseContents.wood} Wood`); if(keseContents.stone > 0) kStr.push(`${keseContents.stone} Stone`); 
+            if(keseContents.meat > 0) kStr.push(`${keseContents.meat} Meat`); if(keseContents.leather > 0) kStr.push(`${keseContents.leather} Leather`); 
+            if(keseContents.carrot > 0) kStr.push(`${keseContents.carrot} Carrot`); if(keseContents.coal > 0) kStr.push(`${keseContents.coal} Coal`); 
+            if(keseContents.wolfHide > 0) kStr.push(`${keseContents.wolfHide} Wolf Skin`); if(keseContents.ironScrap > 0) kStr.push(`${keseContents.ironScrap} Iron Scrap`); 
+            if(keseContents.soup > 0) kStr.push(`${keseContents.soup} Soup`);
+            document.getElementById('keseUI').innerHTML = kStr.length > 0 ? "Inside the Purse:<br>" + kStr.join(', ') : "Inside the Purse: Empty"; 
+            document.getElementById('hungerUI').innerText = `Hunger: ${playerHunger}`;
+            document.getElementById('campfireUI').innerText = `Campfire: ${campfireHealth}`; document.getElementById('playerHealthUI').childNodes[0].nodeValue = `Life: ${playerHP} ♥`;
+            
+            if(tools.spear > 0) document.getElementById('slot3').style.display = 'flex';
+            if(tools.pickaxe > 0 || tools.ironPickaxe > 0) { let s4 = document.getElementById('slot4'); s4.style.display = 'flex'; s4.innerHTML = tools.ironPickaxe > 0 ? "4<br>Iron P" : "4<br>Pickaxe"; }
+            if(tools.blueprint > 0) { let s5 = document.getElementById('slot5'); s5.style.display = 'flex'; s5.innerHTML = `5<br>Plan(${tools.blueprint})`; } else { if(activeSlot === 5 && !currentPlacementHolo) switchSlot(1); document.getElementById('slot5').style.display = 'none'; }
+            if(tools.pistol > 0) document.getElementById('slot6').style.display = 'flex';
+            if(tools.knightSword > 0) document.getElementById('slot7').style.display = 'flex';
+        }
+
+        function updateWolfHP(wolf) {
+            wolf.userData.hpSprite.visible = true;
+            let ctx = wolf.userData.ctx; ctx.clearRect(0, 0, 64, 16); ctx.fillStyle = '#111'; ctx.fillRect(0,0,64,16); ctx.fillStyle = '#ff0000';
+            ctx.fillRect(0,0, Math.max(0, (wolf.userData.hp / wolf.userData.maxHp)) * 64, 16); wolf.userData.tex.needsUpdate = true; } 
+            
+        function destroyEntity(entityHit) {
+            scene.remove(entityHit);
+            interactableObjects = interactableObjects.filter(obj => obj !== entityHit && obj.userData.parentEntity !== entityHit);
+            if (entityHit.userData.isTree) { treesData = treesData.filter(t => t.id !== entityHit.userData.id); spawnItem(entityHit.position.x, entityHit.position.z, 'wood');
+            } 
+            else if (entityHit.userData.isRock) { treesData = treesData.filter(t => t.id !== entityHit.userData.id); spawnItem(entityHit.position.x, entityHit.position.z, 'stone'); } 
+            else if (entityHit.userData.isSugarcane) { machineStorage.paper += 1; showMessage("+1 Paper", "#00ff00"); updateUI(); }
+            else if (entityHit.userData.isAnimal) { animals = animals.filter(a => a !== entityHit); spawnItem(entityHit.position.x, entityHit.position.z, 'meat'); if(entityHit.userData.animalType === 'cow') spawnItem(entityHit.position.x, entityHit.position.z, 'leather'); }
+            else if (entityHit.userData.isWolf) {
+                wolves = wolves.filter(w => w !== entityHit);
+                spawnItem(entityHit.position.x, entityHit.position.z, 'meat'); spawnItem(entityHit.position.x, entityHit.position.z, 'meat'); let hideCount = entityHit.userData.isAlpha ? 3 : Math.floor(Math.random() * 3);
+                for(let i=0; i<hideCount; i++) { spawnItem(entityHit.position.x, entityHit.position.z, 'wolfHide'); } if(entityHit.userData.isAlpha) showMessage("THE ALPHA WOLF HAS BEEN KILLED!", "#ffaa00"); spawnCraftingParticles(entityHit.position);
+            } else if (entityHit.userData.isCage) { if(entityHit.userData.wolf) { entityHit.userData.wolf.userData.cage = null; entityHit.userData.wolf.userData.aggro = true;
+            } cages = cages.filter(c => c !== entityHit); spawnCraftingParticles(entityHit.position); } else if (entityHit.userData.isLootChest) { let lType = entityHit.userData.lootType;
+            if (lType === 'pickaxe_drop') { tools.ironPickaxe = 1; showMessage("You Found an Iron Pickaxe!!");
+            } else if (lType === 'meat_drop') { keseContents.meat += 3; animateKese(); showMessage("+3 You Found Meat!");
+            } else if (lType === 'pistol_drop') { tools.pistol = 1; showMessage("Weapons (6) Found!"); }
+                else if (lType === 'knight_drop') { tools.knightSword = 1; showMessage("YOU FOUND A HEAVY KNIGHT'S SWORD! (7)", "#aaaaaa"); switchSlot(7); }
+                updateUI(); spawnCraftingParticles(entityHit.position);
+            } 
+        }
+
+        function shootPistol(raycaster) {
+            playShootSound();
+            recoilAmount = 0.3; pistolFlash.visible = true; setTimeout(() => pistolFlash.visible = false, 50);
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            let hits = raycaster.intersectObjects(interactableObjects, false);
+            if (hits.length > 0) {
+                let hitObj = hits[0].object.userData.parentEntity || hits[0].object;
+                if (hitObj.userData.hp !== undefined && !hitObj.userData.isHologram) {
+                    let damage = hitObj.userData.isWolf || hitObj.userData.isCage ? 5 : 1; 
+                    hitObj.userData.hp -= damage; 
+                    if(hitObj.userData.isWolf) { hitObj.userData.aggro = true; if(hitObj.userData.cage) { hitObj.userData.cage.userData.hp -= damage;
+                    if(hitObj.userData.cage.userData.hp <= 0) destroyEntity(hitObj.userData.cage); } updateWolfHP(hitObj); }
+                    hitObj.position.x += 0.1;
+                    setTimeout(() => { if(hitObj && hitObj.parent) hitObj.position.x -= 0.1; }, 50);
+                    if (hitObj.userData.hp <= 0) destroyEntity(hitObj);
+                }
+            }
+        }
+
+        // --- YENİ EKLENEN ALTIN SANDIK OLUŞTURMA FONKSİYONU ---
+        function createGoldenChest(lootType) {
+            let chestGroup = new THREE.Group();
+            chestGroup.userData = { isGoldenChest: true, opened: false, looted: false, lootType: lootType };
+            
+            let base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.8), new THREE.MeshStandardMaterial({color: 0x3d2314}));
+            base.position.y = 0.3; 
+            base.castShadow = true;
+            
+            let lidGrp = new THREE.Group();
+            lidGrp.position.set(0, 0.6, -0.4); 
+            
+            let lid = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 0.8), new THREE.MeshStandardMaterial({color: 0x3d2314}));
+            lid.position.set(0, 0.1, 0.4); 
+            
+            let goldStripe = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.22, 0.2), new THREE.MeshStandardMaterial({color: 0xffd700, metalness: 0.8, roughness: 0.2}));
+            goldStripe.position.set(0, 0.1, 0.4);
+            
+            lidGrp.add(lid, goldStripe);
+            chestGroup.add(base, lidGrp);
+            chestGroup.userData.lid = lidGrp;
+            
+            base.userData.parentEntity = chestGroup;
+            lid.userData.parentEntity = chestGroup;
+            goldStripe.userData.parentEntity = chestGroup;
+            
+            interactableObjects.push(base, lid, goldStripe);
+            return chestGroup;
+        }
+
+        // --- YENİ EKLENEN BETON ALAN ---
+        function spawnConcreteArea(x, z) {
+            let area = new THREE.Mesh(new THREE.BoxGeometry(10, 0.1, 10), new THREE.MeshStandardMaterial({color: 0x888888, roughness: 0.9}));
+            area.position.set(x, 0.05, z);
+            area.receiveShadow = true;
+            scene.add(area);
+            interactableObjects.push(area);
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.FogExp2(0x87ceeb, 0.003);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); scene.add(camera);
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6); hemiLight.position.set(0, 200, 0); scene.add(hemiLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); dirLight.position.set(50, 80, 50);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100; dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 200; dirLight.shadow.bias = -0.001; dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; scene.add(dirLight);
+            
+            floor = new THREE.Mesh(new THREE.CircleGeometry(MAP_RADIUS, 128), new THREE.MeshStandardMaterial({ color: 0x3d7a3d, roughness: 0.9, metalness: 0.1 })); floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true; scene.add(floor);
+            
+            const grassMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.2, 0.5), new THREE.MeshStandardMaterial({ color: 0x4caf50, side: THREE.DoubleSide, roughness: 1 }), GRASS_COUNT);
+            const dummy = new THREE.Object3D(); 
+            for (let i = 0; i < GRASS_COUNT; i++) { 
+                const r = Math.sqrt(Math.random()) * MAP_LIMIT;
+                if(r < 4.0) continue; 
+                let gx = r * Math.cos(Math.random() * 2 * Math.PI);
+                let gz = r * Math.sin(Math.random() * 2 * Math.PI); 
+                if(isInInn(gx, gz)) continue; 
+                // Beton alanın içine çimen girmesini engelliyoruz
+                if(Math.hypot(gx - (-40), gz - (-40)) < 6) continue;
+                
+                dummy.position.set(gx, 0.25, gz);
+                dummy.rotation.y = Math.random() * Math.PI; dummy.updateMatrix(); grassMesh.setMatrixAt(i, dummy.matrix); 
+            } 
+            scene.add(grassMesh); 
+            
+            const safeZoneGeo = new THREE.TorusGeometry(SAFE_ZONE_RADIUS, 0.15, 8, 64);
+            const safeZoneMat = new THREE.MeshStandardMaterial({color: 0xffddaa, emissive: 0x332200, roughness: 1}); const safeZoneMesh = new THREE.Mesh(safeZoneGeo, safeZoneMat);
+            safeZoneMesh.rotation.x = Math.PI / 2; safeZoneMesh.position.y = 0.05; scene.add(safeZoneMesh); campfireGroup = new THREE.Group(); campfireGroup.userData = { isCampfire: true };
+            let logMat = new THREE.MeshStandardMaterial({color: 0x2a140b, roughness: 1}); for(let i=0; i<4; i++) { let fLog = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.0, 16), logMat);
+            fLog.rotation.x = Math.PI/2.2; fLog.rotation.y = (Math.PI/4)*i; fLog.position.y = 0.2; fLog.castShadow = true; fLog.receiveShadow = true; fLog.userData.isCampfire = true; campfireGroup.add(fLog);
+            } let stoneMat = new THREE.MeshStandardMaterial({color: 0x666666, roughness: 1.0, metalness: 0});
+            for(let i=0; i<10; i++) { let s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), stoneMat); s.position.set(Math.cos(i*Math.PI/5)*1.2, 0.1, Math.sin(i*Math.PI/5)*1.2);
+            s.scale.set(1, 0.5 + Math.random()*0.5, 1); s.castShadow = true; s.receiveShadow = true; s.userData.isCampfire = true; campfireGroup.add(s);
+            } const fireParticleMat = new THREE.MeshBasicMaterial({map: fireTexture, transparent: true, opacity: 0.8, color: 0xffaa00, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending});
+            for(let i=0; i<20; i++){ let p = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), fireParticleMat.clone()); resetFireParticle(p); campfireGroup.add(p); fireParticles.push(p);
+            } fireLight = new THREE.PointLight(0xff6600, 4.0, 40); fireLight.position.y = 1.5; fireLight.castShadow = true; campfireGroup.add(fireLight); scene.add(campfireGroup);
+            treesData.push({ id: 'campfire', x: 0, z: 0, radius: 2.0 }); interactableObjects.push(...campfireGroup.children);
+            for(let i=0; i<60; i++) { let sc = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8), new THREE.MeshStandardMaterial({color: 0x8fbc8f, roughness: 0.6}));
+            sc.userData = { isSugarcane: true, hp: 1, parentEntity: sc }; sc.position.y = 1.4; sc.castShadow = true;
+            let pos = getRandomValidPos(SAFE_ZONE_RADIUS, MAP_LIMIT); sc.position.set(pos.x, 1.4, pos.z); scene.add(sc); interactableObjects.push(sc); } const carrotMat = new THREE.MeshStandardMaterial({color: 0xff7f00, roughness: 0.8});
+            const carrotTopMat = new THREE.MeshStandardMaterial({color: 0x228b22, roughness: 1.0}); for(let i=0; i<50; i++) { let carrot = new THREE.Group();
+            carrot.userData = { isCarrot: true }; let body = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.4, 8), carrotMat); body.rotation.x = Math.PI; body.position.y = 0.2; body.castShadow=true; carrot.add(body); let top = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.2, 8), carrotTopMat); top.position.y = 0.4; top.castShadow=true; carrot.add(top); let pos = getRandomValidPos(SAFE_ZONE_RADIUS, MAP_LIMIT); carrot.position.set(pos.x, 0, pos.z); scene.add(carrot); interactableObjects.push(carrot.children[0], carrot.children[1]); carrot.children.forEach(c=>c.userData.parentEntity=carrot); }
+
+            const mainGrinder = new THREE.Group(); mainGrinder.userData = { isMainMachine: true }; 
+            let gBase = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 1.5), new THREE.MeshStandardMaterial({color: 0x3a3a3a, roughness: 0.5, metalness: 0.6})); gBase.position.y = 0.6; gBase.castShadow = true; gBase.receiveShadow = true; mainGrinder.add(gBase); 
+            let gFunnel = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.2, 0.8, 16), new THREE.MeshStandardMaterial({color: 0x5a5a5a, roughness: 0.4, metalness: 0.7})); gFunnel.position.y = 1.6; gFunnel.rotation.y = Math.PI/4; gFunnel.castShadow = true; mainGrinder.add(gFunnel); 
+            mainGrinder.position.set(-4, 0, 4); scene.add(mainGrinder); interactableObjects.push(gBase, gFunnel); treesData.push({ id: 'grinder', x: -4, z: 4, radius: 1.5 });
+            
+            coalContainerGroup = new THREE.Group(); let cBox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), new THREE.MeshStandardMaterial({color: 0x5c4033})); cBox.position.y = 0.2; cBox.castShadow = true; let cHole = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.41, 0.6), new THREE.MeshBasicMaterial({color: 0x111111})); cHole.position.y = 0.21; coalContainerGroup.add(cBox, cHole); coalContainerGroup.position.set(-5.5, 0, 4); scene.add(coalContainerGroup); treesData.push({ id: 'coalbox', x: -5.5, z: 4, radius: 0.8 });
+
+            const workbenchGroup = new THREE.Group(); workbenchGroup.userData = { isWorkbench: true }; const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2, 1.0), new THREE.MeshStandardMaterial({color: 0x8b5a2b, roughness: 0.8})); tableTop.position.y = 0.8; tableTop.castShadow = true; tableTop.receiveShadow = true; tableTop.userData.isWorkbench = true; workbenchGroup.add(tableTop); [[0.6,0.4,0.4], [-0.6,0.4,0.4], [0.6,0.4,-0.4], [-0.6,0.4,-0.4]].forEach(pos => { let leg = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.8, 0.15), new THREE.MeshStandardMaterial({color: 0x5c4033})); leg.position.set(...pos); leg.castShadow = true; leg.userData.isWorkbench = true; workbenchGroup.add(leg); }); workbenchGroup.position.set(4, 0, 4); workbenchGroup.rotation.y = -Math.PI / 4; scene.add(workbenchGroup); interactableObjects.push(tableTop, ...workbenchGroup.children); treesData.push({ id: 'workbench', x: 4, z: 4, radius: 1.2 });
+
+            spawnGiantInn(-25, -25); 
+            spawnBlacksmith(40, -40);
+            
+            // BETON ALAN OLUŞTURULUYOR (-40, -40 konumunda)
+            spawnConcreteArea(-40, -40);
+
+            spawnCageWithWolf(60, 60, false); spawnCageWithWolf(-60, 70, false); spawnCageWithWolf(40, -80, false); spawnCageWithWolf(-80, -40, false); spawnCageWithWolf(80, -20, false); spawnCageWithWolf(-10, 90, true);
+
+            setInterval(() => { if (campfireHealth > 0) { campfireHealth--; updateUI(); } }, 5000); 
+            setInterval(() => { spawnItem(coalContainerGroup.position.x, coalContainerGroup.position.z, 'coal'); spawnCraftingParticles(coalContainerGroup.position); }, 20000); 
+            
+            setInterval(() => { if (isDead) return; if (playerHunger > 0) { playerHunger -= 2; updateUI(); } if (playerHunger <= 0) { playerHP -= 5; updateUI(); if(playerHP <= 0) { isDead = true; document.getElementById('msgUI').innerHTML = "ÖLDÜN!<br>AÇLIKTAN BAYILDIN"; document.getElementById('msgUI').style.display = 'block'; document.exitPointerLock(); } } }, 5000);
+
+            const trunkMat = new THREE.MeshStandardMaterial({color: 0x4a3219, roughness: 1}); const leafMat = new THREE.MeshStandardMaterial({color: 0x1e5e1e, roughness: 0.9});
+            for(let i = 0; i < 120; i++) { 
+                const tree = new THREE.Group(); tree.userData = { isTree: true, hp: 3, id: 'tree_'+i }; 
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 3.5, 8), trunkMat); trunk.position.y = 1.75; trunk.castShadow = true; trunk.receiveShadow = true; trunk.userData.parentEntity = tree; tree.add(trunk); 
+                for(let j=0; j<3; j++) { let cone = new THREE.Mesh(new THREE.ConeGeometry(2.5 - j*0.6, 2.5, 8), leafMat); cone.position.y = 3.5 + j*1.8; cone.castShadow = true; cone.receiveShadow = true; cone.userData.parentEntity = tree; tree.add(cone); }
+                let pos = getRandomValidPos(SAFE_ZONE_RADIUS, MAP_LIMIT); tree.position.set(pos.x, 0, pos.z); scene.add(tree); interactableObjects.push(trunk, ...tree.children.slice(1)); treesData.push({ id: tree.userData.id, x: tree.position.x, z: tree.position.z, radius: 1.0 }); 
+            }
+            
+            for(let i=0; i<70; i++) { 
+                let rock = new THREE.Mesh(new THREE.IcosahedronGeometry(1.0, 0), stoneMat); rock.scale.set(0.8 + Math.random()*0.6, 0.6 + Math.random()*0.6, 0.8 + Math.random()*0.6); rock.castShadow = true; rock.receiveShadow = true; rock.userData = { isRock: true, hp: 5, parentEntity: rock }; 
+                let pos = getRandomValidPos(SAFE_ZONE_RADIUS, MAP_LIMIT); rock.position.set(pos.x, 0.4, pos.z); rock.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI); scene.add(rock); interactableObjects.push(rock); treesData.push({ id: 'rock_'+i, x: rock.position.x, z: rock.position.z, radius: 1.5 }); 
+            }
+            for(let i=0; i<25; i++) { spawnAnimal('cow'); spawnAnimal('sheep'); }
+
+            axeGroup = new THREE.Group(); 
+            axeGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4), new THREE.MeshStandardMaterial({color: 0x5c4033}))).children[0].position.y = 0.2; 
+            let b=new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.02), new THREE.MeshStandardMaterial({color: 0xaaaaaa, metalness:0.8, roughness:0.2})); 
+            b.position.set(0.06, 0.35, 0); axeGroup.add(b); 
+            axeGroup.position.set(0.4, -0.3, -0.5); axeGroup.rotation.x = -Math.PI/4;
+
+            spearGroup = new THREE.Group(); spearGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.2), new THREE.MeshStandardMaterial({color: 0x8b5a2b}))).children[0].position.y = 0.6; let st=new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.35, 8), new THREE.MeshStandardMaterial({color: 0x777777, metalness:0.6})); st.position.y = 1.35; spearGroup.add(st); spearGroup.position.set(0.4, -0.5, -0.6); spearGroup.rotation.x = -Math.PI/3; spearGroup.visible = false;
+            
+            pickaxeGroup = new THREE.Group(); 
+            pickaxeGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6), new THREE.MeshStandardMaterial({color: 0x5c4033}))).children[0].position.y = 0.3; 
+            let ph=new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.05), new THREE.MeshStandardMaterial({color: 0x444444})); 
+            ph.position.set(0, 0.5, 0); pickaxeGroup.add(ph); 
+            pickaxeGroup.position.set(0.4, -0.3, -0.5); pickaxeGroup.rotation.x = -Math.PI/4; pickaxeGroup.visible = false;
+            
+            ironPickaxeGroup = new THREE.Group(); 
+            ironPickaxeGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6), new THREE.MeshStandardMaterial({color: 0x5c4033}))).children[0].position.y = 0.3; 
+            let iph=new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.06, 0.06), new THREE.MeshStandardMaterial({color: 0xdddddd, metalness: 1.0, roughness: 0.2})); 
+            iph.position.set(0, 0.5, 0); ironPickaxeGroup.add(iph); 
+            ironPickaxeGroup.position.set(0.4, -0.3, -0.5); ironPickaxeGroup.rotation.x = -Math.PI/4; ironPickaxeGroup.visible = false;
+            
+            keseGroup = new THREE.Group(); let kBot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshStandardMaterial({color: 0xc87b3a, roughness:0.9})); kBot.scale.y = 0.8; let kNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 0.1), new THREE.MeshStandardMaterial({color: 0xc87b3a})); kNeck.position.y = 0.1; keseGroup.add(kBot, kNeck); keseGroup.position.set(0.4, -0.3, -0.5); keseGroup.visible = false;
+            blueprintGroup = new THREE.Group(); let bpRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4), new THREE.MeshStandardMaterial({color: 0xadd8e6, roughness:0.5})); bpRoll.rotation.x = Math.PI/2; blueprintGroup.add(bpRoll); blueprintGroup.position.set(0.4, -0.2, -0.5); blueprintGroup.visible = false;
+            pistolGroup = new THREE.Group(); let pBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.25), new THREE.MeshStandardMaterial({color: 0x222222, metalness: 0.8, roughness: 0.3})); pBarrel.position.set(0, 0.05, 0); let pGrip = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.05), new THREE.MeshStandardMaterial({color: 0x111111, roughness: 0.9})); pGrip.position.set(0, -0.02, 0.08); pGrip.rotation.x = Math.PI / 8; let pSight = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.02, 0.01), new THREE.MeshBasicMaterial({color: 0xff0000})); pSight.position.set(0, 0.08, -0.1); pistolFlash = new THREE.PointLight(0xffff00, 2, 5); pistolFlash.position.set(0, 0.05, -0.15); pistolFlash.visible = false; pistolGroup.add(pBarrel, pGrip, pSight, pistolFlash); pistolGroup.position.set(0.3, -0.25, -0.4); pistolGroup.visible = false;
+
+            knightSwordGroup = new THREE.Group();
+            let swordHilt = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25), new THREE.MeshStandardMaterial({color: 0x3e2723, roughness: 1.0})); swordHilt.position.y = 0.125;
+            let swordGuard = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.02, 0.04), new THREE.MeshStandardMaterial({color: 0x888888, metalness: 0.9})); swordGuard.position.y = 0.25;
+            let swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.7, 0.01), new THREE.MeshStandardMaterial({color: 0xcccccc, metalness: 0.9, roughness: 0.2})); swordBlade.position.y = 0.6;
+            knightSwordGroup.add(swordHilt, swordGuard, swordBlade);
+            knightSwordGroup.position.set(0.4, -0.5, -0.6); knightSwordGroup.rotation.x = -Math.PI/3; knightSwordGroup.visible = false;
+
+            camera.add(axeGroup); camera.add(spearGroup); camera.add(pickaxeGroup); camera.add(ironPickaxeGroup); camera.add(keseGroup); camera.add(blueprintGroup); camera.add(pistolGroup); camera.add(knightSwordGroup);
+            player = new THREE.Group(); scene.add(player); player.position.set(0, 1.6, 4); camera.position.set(player.position.x, 1.6, player.position.z);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" }); renderer.setSize(window.innerWidth, window.innerHeight); renderer.setClearColor(0x87ceeb); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputEncoding = THREE.sRGBEncoding; document.body.appendChild(renderer.domElement);
+            
+            window.addEventListener('contextmenu', (e) => e.preventDefault()); const raycaster = new THREE.Raycaster(); const centerVector = new THREE.Vector2(0, 0);
+            
+            document.addEventListener('mouseup', (e) => { 
+                if (e.button === 0) {
+                    isLeftMouseDown = false;
+                    
+                    if (activeSlot === 8 && grabbedItem) {
+                        let droppedHandled = false;
+
+                        for(let p of pots) {
+                            if(Math.hypot(grabbedItem.position.x - p.position.x, grabbedItem.position.z - p.position.z) < 2.0) {
+                                let type = grabbedItem.userData.isCarrot ? 'carrot' : grabbedItem.userData.itemType;
+                                if(type === 'meat' || type === 'carrot') {
+                                    if(type === 'meat') p.userData.heldMeat = (p.userData.heldMeat || 0) + 1;
+                                    if(type === 'carrot') p.userData.heldCarrot = (p.userData.heldCarrot || 0) + 1;
+                                    
+                                    scene.remove(grabbedItem);
+                                    droppedItems = droppedItems.filter(i => i !== grabbedItem);
+                                    interactableObjects = interactableObjects.filter(i => i !== grabbedItem && i.userData.parentEntity !== grabbedItem);
+                                    
+                                    if(p.userData.heldMeat >= 1 && p.userData.heldCarrot >= 1) {
+                                        p.userData.heldMeat -= 1;
+                                        p.userData.heldCarrot -= 1;
+                                        p.userData.isCooking = true;
+                                        p.userData.cookTimer = 5.0;
+                                        p.userData.liquidMesh.visible = true;
+                                        showMessage("The Soup Is Cooking! (It's Bubbling...)", "#ffaa00");
+                                    } else {
+                                        showMessage(`Thrown into the cauldron: ${type === 'meat' ? 'Meat' : 'Carrot'}. (You'll need 1 piece of meat and 1 carrot)`, "#aaaaaa");
+                                    }
+                                    droppedHandled = true;
+                                    break;
+                                }
+                            }
+                        }
+                        grabbedItem = null; // Havada tutulan objeyi bırak
+                    }
+                } 
+                if (e.button === 2 && activeSlot === 6) { isAiming = false; document.getElementById('crosshair').style.borderColor = "#000"; } 
+            });
+            
+            document.addEventListener('mousedown', (e) => {
+                if (isUIOpen || isDead) return; if (document.pointerLockElement !== renderer.domElement) { renderer.domElement.requestPointerLock(); return; } 
+                
+                if (currentPlacementHolo) { 
+                    if (e.button === 0) { 
+                        let h = currentPlacementHolo.userData;
+                        if(machineStorage.wood >= h.reqWood && machineStorage.stone >= h.reqStone && machineStorage.iron >= h.reqIronScrap) {
+                            machineStorage.wood -= h.reqWood;
+                            machineStorage.stone -= h.reqStone;
+                            machineStorage.iron -= h.reqIronScrap;
+                            buildRealStructure(currentPlacementHolo); 
+                            currentPlacementHolo = null; 
+                            document.getElementById('msgUI').style.display = 'none'; 
+                            if(activeSlot === 5 && tools.blueprint === 0) switchSlot(1); 
+                            updateUI();
+                            showMessage("It Was Built Using Construction Machinery!", "#00ff00");
+                        } else { 
+                            showMessage("There is a shortage of material in the grinder hopper (machine)!", "#ff0000"); 
+                        }
+                    } else if (e.button === 2) { 
+                        scene.remove(currentPlacementHolo); currentPlacementHolo = null; tools.blueprint++; updateUI(); document.getElementById('msgUI').style.display = 'none'; 
+                    } 
+                    return; 
+                }
+                
+                if (e.button === 0) { 
+                    isLeftMouseDown = true; 
+                    
+                    if (activeSlot === 8) {
+                        raycaster.setFromCamera(centerVector, camera);
+                        let searchArray = [...droppedItems, ...interactableObjects];
+                        let hits = raycaster.intersectObjects(searchArray, true);
+                        
+                        if (hits.length > 0 && hits[0].distance < 6) {
+                            let obj = hits[0].object;
+                            let item = obj.userData.parentEntity || obj;
+                            
+                            // YENİ: 8. SLOT İLE ALTIN SANDIK AÇMA (SOL TIK)
+                            if (item.userData && item.userData.isGoldenChest) {
+                                if (!item.userData.opened) {
+                                    item.userData.opened = true;
+                                    item.userData.lid.rotation.x = -Math.PI / 2; // Kapağı geriye aç
+                                    showMessage("The Chest Has Been Opened! (Right-click on Slot 8 to Claim the Loot)", "#00ff00");
+                                    let worldPos = new THREE.Vector3();
+                                    item.getWorldPosition(worldPos);
+                                    spawnCraftingParticles(worldPos);
+                                }
+                                return; 
+                            }
+
+                            if (item.userData && (item.userData.itemType || item.userData.isCarrot)) {
+                                grabbedItem = item; 
+                            }
+                        }
+                        return;
+                    }
+                    
+                    if (activeSlot === 6 && tools.pistol > 0) { shootPistol(raycaster); return; }
+                    let isWeaponSlot = (activeSlot === 1 || activeSlot === 3 || activeSlot === 4 || activeSlot === 7);
+                    if (isWeaponSlot && !isSwinging) {
+                        isSwinging = true; raycaster.setFromCamera(centerVector, camera); const hits = raycaster.intersectObjects(interactableObjects, false);
+                        if (hits.length > 0 && hits[0].distance < (activeSlot === 7 ? 4.5 : 4)) {
+                            let entityHit = hits[0].object.userData.parentEntity || hits[0].object;
+                            
+                            // Altın Sandıklar SİLAHLA/BALTAYLA ASLA KIRILMAZ
+                            if (entityHit && entityHit.userData.hp > 0 && !entityHit.userData.isHologram && !entityHit.userData.isGoldenChest) {
+                                if(entityHit.userData.isRock) { if(activeSlot !== 4 && activeSlot !== 7) { showMessage("We need a pickaxe!"); return; } entityHit.userData.hp -= (tools.ironPickaxe > 0 ? 10 : (activeSlot === 7 ? 3 : 1)); } 
+                                else if (entityHit.userData.isTree) { if(activeSlot !== 1 && activeSlot !== 7) { showMessage("We need an axe!"); return; } entityHit.userData.hp -= (activeSlot === 7 ? 2 : 1); } 
+                                else if (entityHit.userData.isLootChest) { if(activeSlot !== 1 && activeSlot !== 7) { showMessage("We need an axe!"); return; } entityHit.userData.hp -= 1; }
+                                else if (entityHit.userData.isSugarcane) { entityHit.userData.hp -= 1; }
+                                else if (entityHit.userData.isAnimal) { entityHit.userData.hp -= (activeSlot === 7 ? 5 : (activeSlot === 3 ? 2 : 1)); }
+                                else if (entityHit.userData.isWolf) { 
+                                    if(activeSlot === 7) entityHit.userData.hp -= 8; 
+                                    else if(activeSlot === 1) entityHit.userData.hp -= 3; 
+                                    else if(activeSlot === 3) entityHit.userData.hp -= 4; 
+                                    else entityHit.userData.hp -= 1; 
+                                    entityHit.userData.aggro = true; updateWolfHP(entityHit);
+                                }
+                                else if (entityHit.userData.isCage) { entityHit.userData.hp -= (activeSlot === 7 ? 3 : 1); } 
+                                
+                                entityHit.rotation.z += 0.05; setTimeout(() => { if(entityHit && entityHit.parent) entityHit.rotation.z -= 0.05; }, 100);
+                                if (entityHit.userData.hp <= 0) destroyEntity(entityHit);
+                            }
+                        }
+                    }
+                } 
+                else if (e.button === 2) { 
+                    if (activeSlot === 6 && tools.pistol > 0) { isAiming = true; document.getElementById('crosshair').style.borderColor = "red"; return; }
+                    raycaster.setFromCamera(centerVector, camera); 
+                    
+                    // YENİ: 8. SLOTLA SAĞ TIKLAYIP AÇIK SANDIKTAN GANİMET ALMA
+                    if (activeSlot === 8) {
+                        let searchArray = [...interactableObjects];
+                        let hits = raycaster.intersectObjects(searchArray, true);
+                        if (hits.length > 0 && hits[0].distance < 6) {
+                            let obj = hits[0].object;
+                            let item = obj.userData.parentEntity || obj;
+                            
+                            // Eğer sandık altınsa, açılmışsa ve henüz ganimeti alınmamışsa
+                            if (item.userData && item.userData.isGoldenChest && item.userData.opened && !item.userData.looted) {
+                                item.userData.looted = true; // Sadece bir kere alınabilir
+                                let lType = item.userData.lootType;
+                                if (lType === 'pickaxe_drop') { tools.ironPickaxe = 1; showMessage("The Iron Pickaxe Is Now Available!"); } 
+                                else if (lType === 'meat_drop') { keseContents.meat += 3; animateKese(); showMessage("+3 Meat Added to the Bag!"); } 
+                                else if (lType === 'pistol_drop') { tools.pistol = 1; showMessage("Weapon (6) Has Been Added to the Inventory!"); }
+                                else if (lType === 'knight_drop') { tools.knightSword = 1; showMessage("THE HEAVY KNIGHT'S SWORD (7) IS NOW AVAILABLE IN THE INVENTORY!", "#aaaaaa"); switchSlot(7); }
+                                updateUI();
+                                let worldPos = new THREE.Vector3();
+                                item.getWorldPosition(worldPos);
+                                spawnCraftingParticles(worldPos);
+                                return;
+                            }
+                        }
+                    }
+
+                    const hits = raycaster.intersectObjects(interactableObjects, false);
+                    if (hits.length > 0 && hits[0].distance < 4 && hits[0].object.userData.isWorkbench) { document.exitPointerLock(); document.getElementById('craftingMenu').style.display = 'block'; isUIOpen = true; return; }
+                    if (hits.length > 0 && hits[0].distance < 4 && hits[0].object.userData.isAnvil) { document.exitPointerLock(); document.getElementById('anvilMenu').style.display = 'block'; isUIOpen = true; return; }
+
+                    if (activeSlot === 2) {
+                        if (hits.length > 0 && hits[0].distance < 5 && hits[0].object.userData.isCampfire) { if (keseContents.coal > 0) { campfireHealth = Math.min(200, campfireHealth + (keseContents.coal * 20)); showMessage(`+${keseContents.coal*20} Ateş`); keseContents.coal = 0; updateUI(); return; } else { showMessage("No coal!"); return; } }
+                        
+                        if (hits.length > 0 && hits[0].distance < 6 && (hits[0].object.userData.isMainMachine || hits[0].object.parent.userData.isMainMachine)) {
+                            machineStorage.wood += keseContents.wood; keseContents.wood = 0; machineStorage.stone += keseContents.stone; keseContents.stone = 0; machineStorage.meat += keseContents.meat; keseContents.meat = 0; machineStorage.leather += keseContents.leather; keseContents.leather = 0; machineStorage.carrot += keseContents.carrot; keseContents.carrot = 0; 
+                            machineStorage.iron += keseContents.ironScrap; keseContents.ironScrap = 0; 
+                            spawnCraftingParticles(hits[0].object.position); showMessage("Transferred and Ground!"); updateUI(); return;
+                        }
+                        
+                        let searchArray = [...droppedItems, ...interactableObjects];
+                        const allHitItems = raycaster.intersectObjects(searchArray, true);
+                        if (allHitItems.length > 0 && allHitItems[0].distance < 5) {
+                            let item = allHitItems[0].object.userData.parentEntity || allHitItems[0].object;
+                            if(item.userData.isCarrot) { 
+                                scene.remove(item); interactableObjects = interactableObjects.filter(o => o.userData.parentEntity !== item && o !== item); 
+                                keseContents.carrot++; updateUI(); spawnCraftingParticles(item.position); animateKese(); return; 
+                            }
+                            if(droppedItems.includes(item)) { 
+                                scene.remove(item); droppedItems = droppedItems.filter(i => i !== item); 
+                                keseContents[item.userData.itemType]++; updateUI(); animateKese(); return; 
+                            }
+                        }
+                    }
+                    if (activeSlot === 5 && tools.blueprint > 0) { document.exitPointerLock(); document.getElementById('blueprintMenu').style.display = 'block'; isUIOpen = true; return; }
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => { if (document.pointerLockElement === renderer.domElement && !isUIOpen && !isDead) { camera.rotation.y -= e.movementX * 0.002; camera.rotation.x = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, camera.rotation.x - e.movementY * 0.002)); } });
+            const onKeyDown = (e) => {
+                if(isUIOpen || isDead) return; 
+                switch(e.code) { case 'KeyW': moveForward=true; break; case 'KeyS': moveBackward=true; break; case 'KeyA': moveLeft=true; break; case 'KeyD': moveRight=true; break; case 'KeyE': eatFood(); break; case 'Space': if(!isJumping) { velocityY = 0.22; isJumping = true; } break; case 'Digit1': if(!currentPlacementHolo) switchSlot(1); break; case 'Digit2': if(!currentPlacementHolo) switchSlot(2); break; case 'Digit3': if(tools.spear>0 && !currentPlacementHolo) switchSlot(3); break; case 'Digit4': if((tools.pickaxe>0 || tools.ironPickaxe>0) && !currentPlacementHolo) switchSlot(4); break; case 'Digit5': if(tools.blueprint>0 && !currentPlacementHolo) switchSlot(5); break; case 'Digit6': if(tools.pistol>0 && !currentPlacementHolo) switchSlot(6); break; case 'Digit7': if(tools.knightSword>0 && !currentPlacementHolo) switchSlot(7); break; case 'Digit8': if(!currentPlacementHolo) switchSlot(8); break;}
+            };
+            const onKeyUp = (e) => { switch(e.code) { case 'KeyW': moveForward=false; break; case 'KeyS': moveBackward=false; break; case 'KeyA': moveLeft=false; break; case 'KeyD': moveRight=false; } };
+            document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp); camera.rotation.order = 'YXZ'; updateUI(); 
+        }
+        
+        function animateKese() { keseGroup.position.z = -0.3; setTimeout(()=>{keseGroup.position.z = -0.5;}, 100); }
+
+        function spawnAnimal(type) {
+            const animal = new THREE.Group(); animal.userData = { isAnimal: true, animalType: type, hp: (type==='cow'?3:2), id: Math.random(), legs: [] };
+            let bodyMat = new THREE.MeshStandardMaterial({color: type==='cow'?0xdddddd:0xffffff, roughness: 0.9}); let headMat = new THREE.MeshStandardMaterial({color: type==='cow'?0x4a2e15:0x222222, roughness: 0.9});
+            let bodySize = type==='cow' ? [0.6, 0.5, 1.0] : [0.5, 0.4, 0.6]; let headSize = type==='cow' ? [0.4, 0.4, 0.4] : [0.25, 0.25, 0.3];
+            let legSize = type==='cow' ? [0.15, 0.4, 0.15] : [0.1, 0.3, 0.1]; let bodyY = type==='cow' ? 0.6 : 0.45; let headPos = type==='cow' ? [0, 0.7, 0.6] : [0, 0.55, 0.4];
+            let body = new THREE.Mesh(new THREE.BoxGeometry(...bodySize), bodyMat); body.position.y = bodyY; body.castShadow=true; let head = new THREE.Mesh(new THREE.BoxGeometry(...headSize), headMat); head.position.set(...headPos); head.castShadow=true; animal.add(body, head); interactableObjects.push(body, head);
+            [[bodySize[0]/3, legSize[1]/2, bodySize[2]/3], [-bodySize[0]/3, legSize[1]/2, bodySize[2]/3], [bodySize[0]/3, legSize[1]/2, -bodySize[2]/3], [-bodySize[0]/3, legSize[1]/2, -bodySize[2]/3]].forEach(pos => { let leg = new THREE.Mesh(new THREE.BoxGeometry(...legSize), headMat); leg.position.set(...pos); leg.geometry.translate(0, -legSize[1]/2, 0); leg.position.y += legSize[1]/2; leg.castShadow=true; animal.add(leg); animal.userData.legs.push(leg); interactableObjects.push(leg); });
+            animal.children.forEach(child => child.userData.parentEntity = animal); let pos = getRandomValidPos(SAFE_ZONE_RADIUS + 2, MAP_LIMIT - 2); animal.position.set(pos.x, 0, pos.z); animal.rotation.y = Math.random() * Math.PI * 2; scene.add(animal); animals.push(animal);
+        }
+
+        function spawnCageWithWolf(x, z, isAlpha = false) {
+            let cageHp = isAlpha ? 15 : 1; let scale = isAlpha ? 1.25 : 1.0; 
+            let cage = new THREE.Group(); cage.userData = { isCage: true, hp: cageHp, wolf: null };
+            let cageMat = new THREE.MeshStandardMaterial({color: 0x555555, metalness: 0.8, roughness: 0.4});
+            let base = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 3), cageMat); base.position.y = 0.1; cage.add(base);
+            let top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 3), cageMat); top.position.y = 2.4; cage.add(top);
+            for(let i=0; i<8; i++) { let angle = (i/8) * Math.PI * 2; let bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2), cageMat); bar.position.set(Math.cos(angle)*1.4, 1.3, Math.sin(angle)*1.4); cage.add(bar); }
+            if (isAlpha) { let archGeo = new THREE.TorusGeometry(1.4, 0.08, 8, 24, Math.PI); let archMat = new THREE.MeshStandardMaterial({color: 0x880000, metalness: 0.8, roughness: 0.3}); let arch1 = new THREE.Mesh(archGeo, archMat); arch1.position.set(0, 2.5, 0); let arch2 = new THREE.Mesh(archGeo, archMat); arch2.position.set(0, 2.5, 0); arch2.rotation.y = Math.PI / 2; cage.add(arch1, arch2); }
+            cage.position.set(x, 0, z); cage.scale.set(scale, scale, scale); scene.add(cage); interactableObjects.push(base, top); cages.push(cage);
+
+            let wolfHp = isAlpha ? 25 : 15; let wDamage = isAlpha ? 20 : 10; let wSpeed = isAlpha ? 0.09 : 0.06;
+            let wolf = new THREE.Group(); wolf.userData = { isWolf: true, isAlpha: isAlpha, hp: wolfHp, maxHp: wolfHp, damage: wDamage, speed: wSpeed, aggro: false, cage: cage, attackCooldown: 0, legs: [] };
+            let wBodyMat = new THREE.MeshStandardMaterial({color: isAlpha ? 0x050505 : 0x1a1a1a, roughness: 0.9}); let wEyeMat = new THREE.MeshBasicMaterial({color: isAlpha ? 0xff2200 : 0xff0000}); 
+            let body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.0), wBodyMat); body.position.y = 0.5; body.castShadow = true;
+            let head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.5), wBodyMat); head.position.set(0, 0.7, 0.6); head.castShadow = true;
+            let snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.3), wBodyMat); snout.position.set(0, 0.6, 0.85); snout.castShadow = true;
+            let ear1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.1), wBodyMat); ear1.position.set(0.15, 0.95, 0.5); let ear2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.1), wBodyMat); ear2.position.set(-0.15, 0.95, 0.5);
+            let tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.5), wBodyMat); tail.position.set(0, 0.5, -0.6); tail.rotation.x = -Math.PI / 4;
+            let eye1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), wEyeMat); eye1.position.set(0.12, 0.8, 0.83); let eye2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), wEyeMat); eye2.position.set(-0.12, 0.8, 0.83);
+            wolf.add(body, head, snout, ear1, ear2, tail, eye1, eye2);
+            [[0.2, 0.3, 0.4], [-0.2, 0.3, 0.4], [0.2, 0.3, -0.4], [-0.2, 0.3, -0.4]].forEach(pos => { let leg = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, 0.15), wBodyMat); leg.position.set(...pos); leg.geometry.translate(0, -0.2, 0); leg.position.y += 0.2; leg.castShadow=true; wolf.add(leg); wolf.userData.legs.push(leg); interactableObjects.push(leg); });
+            let canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 16; let ctx = canvas.getContext('2d'); let tex = new THREE.CanvasTexture(canvas); let hpSprite = new THREE.Sprite(new THREE.SpriteMaterial({map: tex})); hpSprite.position.y = 1.6; hpSprite.scale.set(1.5, 0.4, 1); hpSprite.visible = false; wolf.add(hpSprite); wolf.userData.hpSprite = hpSprite; wolf.userData.ctx = ctx; wolf.userData.tex = tex;
+            wolf.children.forEach(child => child.userData.parentEntity = wolf); wolf.position.set(x, 0, z); wolf.scale.set(scale, scale, scale); scene.add(wolf); wolves.push(wolf); cage.userData.wolf = wolf;
+            interactableObjects.push(body, head, snout);
+        }
+
+        function spawnItem(x, z, type) {
+            let mesh;
+            if(type === 'coal') { mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), new THREE.MeshStandardMaterial({color: 0x111111, roughness: 1.0})); mesh.userData = { itemType: 'coal' }; }
+            else if (type === 'wolfHide') { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.6), new THREE.MeshStandardMaterial({color: 0x555555, roughness: 0.9})); mesh.userData = { itemType: 'wolfHide' }; }
+            else if (type === 'soup') { 
+                mesh = new THREE.Group(); let bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.12, 0.15, 16), new THREE.MeshStandardMaterial({color: 0xdddddd})); bowl.position.y = 0.075; bowl.castShadow = true; let liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 16), new THREE.MeshStandardMaterial({color: 0xffaa00})); liquid.position.y = 0.15; mesh.add(bowl, liquid); mesh.userData = { itemType: 'soup' }; bowl.userData.parentEntity = mesh; liquid.userData.parentEntity = mesh; 
+            }
+            else {
+                let count = (type === 'wood' || type === 'stone') ? Math.floor(Math.random() * 2) + 2 : 1; 
+                for(let i=0; i<count; i++) { 
+                    if(type === 'wood') { mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.3), new THREE.MeshStandardMaterial({color: 0x3d2314, roughness: 1})); mesh.userData = { itemType: 'wood' }; } 
+                    else if(type === 'stone') { mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35, 0), new THREE.MeshStandardMaterial({color: 0x777777, roughness: 0.8})); mesh.scale.set(0.8+Math.random()*0.4, 0.6+Math.random()*0.4, 0.8+Math.random()*0.4); mesh.userData = { itemType: 'stone' }; } 
+                    else if(type === 'meat') { mesh = createMeatGroup(); }
+                    else if(type === 'leather') { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.6), new THREE.MeshStandardMaterial({color: 0x8b4513})); mesh.userData = { itemType: 'leather' }; }
+                    const offsetX = (Math.random() - 0.5) * 1.5; const offsetZ = (Math.random() - 0.5) * 1.5; mesh.position.set(x + offsetX, 0.4, z + offsetZ); mesh.rotation.y = Math.random() * Math.PI; mesh.castShadow = true; scene.add(mesh); droppedItems.push(mesh);
+                }
+                return;
+            }
+            mesh.position.set(x + (Math.random()-0.5), 1.0, z + (Math.random()-0.5)); mesh.castShadow = true; scene.add(mesh); droppedItems.push(mesh);
+        }
+
+        function createMeatGroup() {
+            let group = new THREE.Group(); let meatBody = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.15, 0.4, 8), new THREE.MeshStandardMaterial({color: 0xaa3333, roughness: 0.8})); meatBody.rotation.z = Math.PI / 2; meatBody.castShadow = true; let bone1 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshStandardMaterial({color: 0xeeeeee})); bone1.position.set(-0.25, 0, 0); bone1.castShadow = true; let bone2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), new THREE.MeshStandardMaterial({color: 0xeeeeee})); bone2.position.set(0.25, 0, 0); bone2.castShadow = true; group.add(meatBody, bone1, bone2); group.userData = { itemType: 'meat' }; meatBody.userData.parentEntity = group; bone1.userData.parentEntity = group; bone2.userData.parentEntity = group; group.scale.set(1.2, 1.2, 1.2); return group;
+        }
+
+        function resetFireParticle(p) { p.position.set((Math.random()-0.5)*1.2, 0.1 + Math.random()*0.5, (Math.random()-0.5)*1.2); p.rotation.z = Math.random() * Math.PI * 2; p.scale.set(1.0 + Math.random()*1.5, 1.0 + Math.random()*1.5, 1); p.userData.speedY = 0.02 + Math.random() * 0.04; p.userData.rotSpeed = (Math.random()-0.5) * 0.1; p.material.opacity = 0.8; }
+        function spawnCraftingParticles(pos) { for(let i=0; i<30; i++) { let pMat = new THREE.MeshBasicMaterial({color: 0x00ff00, transparent: true}); let p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), pMat); p.position.set(pos.x + (Math.random()-0.5), pos.y, pos.z + (Math.random()-0.5)); p.userData = { vx: (Math.random()-0.5)*0.15, vy: Math.random()*0.15 + 0.05, vz: (Math.random()-0.5)*0.15, life: 1.0 }; scene.add(p); craftParticles.push(p); }}
+
+        function buildRealStructure(holo) {
+            scene.remove(holo); interactableObjects = interactableObjects.filter(obj => obj !== holo); let type = holo.userData.type;
+            if(type === 'chest') { let chestGroup = new THREE.Group(); let base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.8), new THREE.MeshStandardMaterial({color: 0x6b4423, roughness:0.8})); base.position.y = 0.4; base.castShadow = true; chestGroup.add(base); chestGroup.position.copy(holo.position); chestGroup.position.y = 0; scene.add(chestGroup); interactableObjects.push(base); treesData.push({ id: Math.random(), x: chestGroup.position.x, z: chestGroup.position.z, radius: 1.0 }); }
+            else if(type === 'hut') { let hutGroup = new THREE.Group(); let wallMat = new THREE.MeshStandardMaterial({color: 0x8b5a2b, roughness:0.9}); let w1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 4), wallMat); w1.position.set(-2, 1.5, 0); hutGroup.add(w1); let w2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 4), wallMat); w2.position.set(2, 1.5, 0); hutGroup.add(w2); let w3 = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 0.2), wallMat); w3.position.set(0, 1.5, -2); hutGroup.add(w3); let roof = new THREE.Mesh(new THREE.ConeGeometry(3.5, 2, 4), new THREE.MeshStandardMaterial({color: 0x4a2e15})); roof.position.set(0, 4, 0); roof.rotation.y = Math.PI / 4; hutGroup.add(roof); hutGroup.position.copy(holo.position); hutGroup.position.y = 0; scene.add(hutGroup); interactableObjects.push(w1, w2, w3); let hx = hutGroup.position.x; let hz = hutGroup.position.z; treesData.push({ id: Math.random(), x: hx-2, z: hz, radius: 0.5 }, { id: Math.random(), x: hx+2, z: hz, radius: 0.5 }, { id: Math.random(), x: hx, z: hz-2, radius: 0.5 }); }
+            else if(type === 'machine') { let machineGroup = new THREE.Group(); let base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({color: 0x444444, metalness:0.5})); base.position.y = 0.75; machineGroup.add(base); machineGroup.position.copy(holo.position); machineGroup.position.y = 0; scene.add(machineGroup); interactableObjects.push(base); treesData.push({ id: Math.random(), x: machineGroup.position.x, z: machineGroup.position.z, radius: 1.5 }); extraMachines.push(machineGroup); }
+            else if(type === 'pot') { 
+                let potGroup = new THREE.Group(); 
+                let base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.4, 0.5, 16), new THREE.MeshStandardMaterial({color: 0x222222, roughness: 0.9, metalness: 0.8})); base.position.y = 0.4; base.castShadow = true; 
+                let liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 16), new THREE.MeshStandardMaterial({color: 0xff8800})); liquid.position.y = 0.6; liquid.visible = false;
+                let sticks = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.3, 4), new THREE.MeshStandardMaterial({color: 0x3d2314})); sticks.position.y = 0.15;
+                potGroup.add(base, liquid, sticks); potGroup.position.copy(holo.position); potGroup.position.y = 0; 
+                potGroup.userData = { isPot: true, isCooking: false, cookTimer: 0, liquidMesh: liquid, heldMeat: 0, heldCarrot: 0 }; scene.add(potGroup); interactableObjects.push(base); pots.push(potGroup); treesData.push({ id: Math.random(), x: potGroup.position.x, z: potGroup.position.z, radius: 0.6 });
+            }
+            spawnCraftingParticles(holo.position);
+        }
+
+        function switchSlot(slotNum) { 
+            activeSlot = slotNum; if (slotNum !== 6) { isAiming = false; document.getElementById('crosshair').style.borderColor = "#000"; }
+            for(let i=1; i<=8; i++) { let slotEl = document.getElementById('slot'+i); if(slotEl) slotEl.classList.toggle('active', slotNum === i); } 
+            axeGroup.visible = (slotNum === 1); keseGroup.visible = (slotNum === 2); spearGroup.visible = (slotNum === 3 && tools.spear > 0); if(tools.ironPickaxe > 0) { pickaxeGroup.visible = false; ironPickaxeGroup.visible = (slotNum === 4); } else { pickaxeGroup.visible = (slotNum === 4 && tools.pickaxe > 0); ironPickaxeGroup.visible = false; }
+            blueprintGroup.visible = (slotNum === 5 && tools.blueprint > 0); pistolGroup.visible = (slotNum === 6 && tools.pistol > 0);
+            knightSwordGroup.visible = (slotNum === 7 && tools.knightSword > 0);
+            
+            if(slotNum !== 8 && grabbedItem) { grabbedItem = null; }
+        }
+
+        // --- YENİ EKLENEN BETON ALAN (KÜÇÜK) ---
+        function spawnConcreteArea(x, z) {
+            let area = new THREE.Mesh(new THREE.BoxGeometry(10, 0.1, 10), new THREE.MeshStandardMaterial({color: 0x888888, roughness: 0.9}));
+            area.position.set(x, 0.05, z);
+            area.receiveShadow = true;
+            scene.add(area);
+            interactableObjects.push(area);
+        }
+
+        // --- YENİ EKLENEN ALTIN ÇİZGİLİ SANDIK MODELİ VE MANTIĞI ---
+        function createGoldenChest(lootType) {
+            let chestGroup = new THREE.Group();
+            chestGroup.userData = { isGoldenChest: true, opened: false, looted: false, lootType: lootType };
+            
+            let base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.8), new THREE.MeshStandardMaterial({color: 0x3d2314}));
+            base.position.y = 0.3; 
+            base.castShadow = true;
+            
+            let lidGrp = new THREE.Group();
+            lidGrp.position.set(0, 0.6, -0.4); 
+            
+            let lid = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 0.8), new THREE.MeshStandardMaterial({color: 0x3d2314}));
+            lid.position.set(0, 0.1, 0.4); 
+            
+            let goldStripe = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.22, 0.2), new THREE.MeshStandardMaterial({color: 0xffd700, metalness: 0.8, roughness: 0.2}));
+            goldStripe.position.set(0, 0.1, 0.4);
+            
+            lidGrp.add(lid, goldStripe);
+            chestGroup.add(base, lidGrp);
+            chestGroup.userData.lid = lidGrp;
+            
+            base.userData.parentEntity = chestGroup;
+            lid.userData.parentEntity = chestGroup;
+            goldStripe.userData.parentEntity = chestGroup;
+            
+            interactableObjects.push(base, lid, goldStripe);
+            return chestGroup;
+        }
+
+        function spawnGiantInn(x, z) {
+            let innGroup = new THREE.Group(); let wallMat = new THREE.MeshStandardMaterial({color: 0x5a3b1d, roughness: 0.9}); let floorMat = new THREE.MeshStandardMaterial({color: 0x4a2e15, roughness: 0.8});
+            let groundFloor = new THREE.Mesh(new THREE.BoxGeometry(19.8, 0.1, 19.8), floorMat); groundFloor.position.set(0, 0.05, 0); groundFloor.receiveShadow = true; innGroup.add(groundFloor);
+            let w1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 20), wallMat); w1.position.set(-10, 4, 0); w1.castShadow = true; innGroup.add(w1);
+            let w2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 20), wallMat); w2.position.set(10, 4, 0); w2.castShadow = true; innGroup.add(w2);
+            let w3 = new THREE.Mesh(new THREE.BoxGeometry(20, 8, 0.5), wallMat); w3.position.set(0, 4, 10); w3.castShadow = true; innGroup.add(w3); 
+            let w4_left = new THREE.Mesh(new THREE.BoxGeometry(7, 8, 0.5), wallMat); w4_left.position.set(-6.5, 4, -10); w4_left.castShadow = true; innGroup.add(w4_left);
+            let w4_right = new THREE.Mesh(new THREE.BoxGeometry(7, 8, 0.5), wallMat); w4_right.position.set(6.5, 4, -10); w4_right.castShadow = true; innGroup.add(w4_right);
+            let w4_top = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.5), wallMat); w4_top.position.set(0, 6, -10); w4_top.castShadow = true; innGroup.add(w4_top);
+            let secondFloor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 19.8), floorMat); secondFloor.position.set(-5, 4, 0); secondFloor.castShadow = true; innGroup.add(secondFloor);
+            for(let i=0; i<16; i++) { let step = new THREE.Mesh(new THREE.BoxGeometry(0.5, (i+1)*0.25, 6), floorMat); step.position.set(7.75 - i*0.5, (i+1)*0.125, 5); step.castShadow = true; innGroup.add(step); interactableObjects.push(step); }
+            let roof = new THREE.Mesh(new THREE.ConeGeometry(16, 8, 4), new THREE.MeshStandardMaterial({color: 0x3d2511, roughness: 1})); roof.position.set(0, 12, 0); roof.rotation.y = Math.PI / 4; roof.castShadow = true; innGroup.add(roof);
+            
+            // ESKİ OYUN DÜZENİNDEKİ SANDIKLAR "ALTIN SANDIK" OLARAK DEĞİŞTİRİLDİ
+            let chest1 = createGoldenChest('pickaxe_drop'); chest1.position.set(-8, 4.1, 7); innGroup.add(chest1);
+            let chest2 = createGoldenChest('meat_drop'); chest2.position.set(-5, 4.1, 7); innGroup.add(chest2);
+            let chest3 = createGoldenChest('pistol_drop'); chest3.position.set(-2, 4.1, 7); innGroup.add(chest3);
+
+            innGroup.position.set(x, 0, z); scene.add(innGroup); interactableObjects.push(w1, w2, w3, w4_left, w4_right, secondFloor, groundFloor); 
+        }
+
+        function spawnBlacksmith(x, z) {
+            let bsGroup = new THREE.Group(); let floor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshStandardMaterial({color: 0x333333})); floor.position.set(0, 0.1, 0); floor.receiveShadow = true;
+            let wallMat = new THREE.MeshStandardMaterial({color: 0x443333, roughness: 0.9});
+            let w1 = new THREE.Mesh(new THREE.BoxGeometry(8, 3.5, 0.5), wallMat); w1.position.set(0, 1.85, -3.75); w1.castShadow = true;
+            let w2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.5, 8), wallMat); w2.position.set(-3.75, 1.85, 0); w2.castShadow = true;
+            let w3 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.5, 8), wallMat); w3.position.set(3.75, 1.85, 0); w3.castShadow = true;
+            let roof = new THREE.Mesh(new THREE.ConeGeometry(7, 3, 4), new THREE.MeshStandardMaterial({color: 0x1a1a1a})); roof.position.set(0, 5, 0); roof.rotation.y = Math.PI/4; roof.castShadow = true;
+            let anvilMat = new THREE.MeshStandardMaterial({color: 0x111111, metalness: 0.9, roughness: 0.2});
+            let anvilBase = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), anvilMat); anvilBase.position.set(1, 0.45, 1); anvilBase.castShadow = true;
+            let anvilTop = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.5), anvilMat); anvilTop.position.set(1, 0.85, 1); anvilTop.castShadow = true;
+            anvilBase.userData.isAnvil = true; anvilTop.userData.isAnvil = true;
+            let furnace = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.5, 2.5), new THREE.MeshStandardMaterial({color: 0x332222})); furnace.position.set(-2, 1.85, -2); furnace.castShadow = true;
+            let fire = new THREE.PointLight(0xff4400, 3, 10); fire.position.set(-2, 1.5, -0.5);
+            
+            // DEMİRCİDEKİ SANDIK ALTIN OLARAK DEĞİŞTİRİLDİ
+            let chest = createGoldenChest('knight_drop'); chest.position.set(2, 0.2, -2);
+            
+            bsGroup.add(floor, w1, w2, w3, roof, anvilBase, anvilTop, furnace, fire, chest); bsGroup.position.set(x, 0, z); scene.add(bsGroup); interactableObjects.push(w1, w2, w3, anvilBase, anvilTop, furnace);
+            for(let i=0; i<3; i++) { let scrap = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 8, 16), new THREE.MeshStandardMaterial({color: 0x999999, metalness: 1.0, roughness: 0.3})); let offX = (Math.random()*4 - 2); let offZ = (Math.random()*4 - 2); scrap.position.set(x + offX, 0.25, z + offZ); scrap.rotation.x = Math.PI/2; scrap.userData = { itemType: 'ironScrap' }; scene.add(scrap); droppedItems.push(scrap); }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate); let now = Date.now(); let delta = (now - lastTime) / 1000; lastTime = now; let time = now * 0.001; 
+            
+            if(grabbedItem && activeSlot === 8) {
+                let dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                grabbedItem.position.copy(camera.position).add(dir.multiplyScalar(2.5));
+                if(grabbedItem.position.y < 0.4) grabbedItem.position.y = 0.4;
+            }
+
+            for (let i = droppedItems.length - 1; i >= 0; i--) { 
+                let item = droppedItems[i]; 
+                let floorY = 0.4;
+                if(item.position.x > -35 && item.position.x < -15 && item.position.z > -35 && item.position.z < -15) {
+                    if (item.position.x <= -25) floorY = 4.4; 
+                    else if (item.position.x > -25 && item.position.x <= -17 && item.position.z >= -23 && item.position.z <= -17) {
+                        let ratio = (-17 - item.position.x) / 8.0; 
+                        ratio = Math.max(0, Math.min(1, ratio)); 
+                        floorY = 0.4 + (ratio * 4.0); 
+                    }
+                }
+                if (item !== grabbedItem && item.position.y > floorY) { item.position.y -= 0.1; } 
+                else if (item !== grabbedItem && item.position.y < floorY) { item.position.y = floorY; }
+            }
+
+            for(let o of interactableObjects) {
+                let pEnt = o.userData.parentEntity || o;
+                if(pEnt.userData && pEnt.userData.isCarrot && pEnt !== grabbedItem && pEnt.position && pEnt.position.y > 0.2) {
+                    pEnt.position.y -= 0.1;
+                }
+            }
+
+            if (isAiming && activeSlot === 6) { camera.fov += (30 - camera.fov) * 0.2; pistolGroup.position.lerp(new THREE.Vector3(0, -0.12, -0.25), 0.2); } else { camera.fov += (75 - camera.fov) * 0.2; pistolGroup.position.lerp(new THREE.Vector3(0.3, -0.25, -0.4), 0.2); } camera.updateProjectionMatrix();
+            if (recoilAmount > 0) { recoilAmount -= delta * 3.0; if (recoilAmount < 0) recoilAmount = 0; } pistolGroup.rotation.x = recoilAmount;
+
+            if (document.pointerLockElement === renderer.domElement && !isUIOpen && !isDead) {
+                if (currentPlacementHolo) { let dir = new THREE.Vector3(0, 0, -1); dir.applyQuaternion(camera.quaternion); dir.y = 0; dir.normalize(); let dist = 6; let targetX = player.position.x + dir.x * dist; let targetZ = player.position.z + dir.z * dist; let hDist = Math.sqrt(targetX**2 + targetZ**2); if (hDist > MAP_LIMIT - 1) { targetX = (targetX / hDist) * (MAP_LIMIT - 1); targetZ = (targetZ / hDist) * (MAP_LIMIT - 1); } currentPlacementHolo.position.set(targetX, currentPlacementHolo.userData.yOffset, targetZ); currentPlacementHolo.rotation.y = player.rotation.y; }
+                const speed = (isAiming && activeSlot === 6) ? 0.08 : 0.2; direction.z = Number(moveBackward) - Number(moveForward); direction.x = Number(moveRight) - Number(moveLeft); direction.normalize(); 
+                if (moveForward || moveBackward || moveLeft || moveRight) { const angle = camera.rotation.y; let moveX = (Math.sin(angle) * direction.z + Math.sin(angle + Math.PI/2) * direction.x) * speed; let moveZ = (Math.cos(angle) * direction.z + Math.cos(angle + Math.PI/2) * direction.x) * speed; let nextX = player.position.x + moveX; let nextZ = player.position.z + moveZ; let canMoveX = true; let canMoveZ = true; for (let t of treesData) { if (Math.sqrt(Math.pow(nextX - t.x, 2) + Math.pow(player.position.z - t.z, 2)) < t.radius) canMoveX = false; if (Math.sqrt(Math.pow(player.position.x - t.x, 2) + Math.pow(nextZ - t.z, 2)) < t.radius) canMoveZ = false; } if (canMoveX) player.position.x += moveX; if (canMoveZ) player.position.z += moveZ; }
+                
+                let floorHeadY = 1.6; if(player.position.x > -35 && player.position.x < -15 && player.position.z > -35 && player.position.z < -15) { if (player.position.x <= -25) { floorHeadY = 5.6; } else if (player.position.x > -25 && player.position.x <= -17 && player.position.z >= -23 && player.position.z <= -17) { let ratio = (-17 - player.position.x) / 8.0; ratio = Math.max(0, Math.min(1, ratio)); floorHeadY = 1.6 + (ratio * 4.0); } }
+                velocityY -= 0.005; player.position.y += velocityY; if (player.position.y <= floorHeadY) { player.position.y = floorHeadY; velocityY = 0; isJumping = false; }
+
+                const dist = Math.sqrt(player.position.x**2 + player.position.z**2); if (dist > MAP_LIMIT) { const angle = Math.atan2(player.position.z, player.position.x); player.position.x = Math.cos(angle) * MAP_LIMIT; player.position.z = Math.sin(angle) * MAP_LIMIT; } camera.position.x = player.position.x; camera.position.y = player.position.y; camera.position.z = player.position.z; player.rotation.y = camera.rotation.y;
+                if (isSwinging && !currentPlacementHolo) { 
+                    swingProgress += 0.2; 
+                    let currentWeapon = axeGroup; 
+                    if(activeSlot === 3) currentWeapon = spearGroup; 
+                    if(activeSlot === 4) currentWeapon = (tools.ironPickaxe > 0 ? ironPickaxeGroup : pickaxeGroup); 
+                    if(activeSlot === 7) currentWeapon = knightSwordGroup;
+
+                    if(activeSlot === 3 || activeSlot === 7) { currentWeapon.position.z = -0.6 - Math.sin(swingProgress) * 0.5; } 
+                    else { currentWeapon.rotation.x = -Math.PI / 4 - Math.sin(swingProgress) * 1.5; } 
+                    
+                    if (swingProgress >= Math.PI) { isSwinging = false; swingProgress = 0; axeGroup.rotation.x = -Math.PI / 4; pickaxeGroup.rotation.x = -Math.PI / 4; ironPickaxeGroup.rotation.x = -Math.PI/4; spearGroup.position.z = -0.6; knightSwordGroup.position.z = -0.6; }
+                }
+                
+                let holoUI = document.getElementById('holoUI'); 
+                if (currentPlacementHolo) {
+                    let h = currentPlacementHolo.userData; let str = [];
+                    if(machineStorage.stone < h.reqStone) str.push(`${h.reqStone - machineStorage.stone} Taş`);
+                    if(machineStorage.wood < h.reqWood) str.push(`${h.reqWood - machineStorage.wood} Odun`);
+                    if(machineStorage.iron < h.reqIronScrap) str.push(`${h.reqIronScrap - machineStorage.iron} D.Hurda`);
+                    
+                    if(str.length > 0) {
+                        holoUI.innerHTML = `Missing from the machine: ${str.join(', ')}<br><span style='font-size:14px;color:#ccc;'>(Right-click: Cancel)</span>`; 
+                        holoUI.style.color = "#ff4444";
+                    } else {
+                        holoUI.innerHTML = `The ingredients are ready!<br><span style='font-size:14px;color:#ccc;'>(Left-click: Build instantly | Right-click: Cancel))</span>`; 
+                        holoUI.style.color = "#00ff00";
+                    }
+                    holoUI.style.display = 'block'; 
+                } else { 
+                    holoUI.style.display = 'none'; 
+                }
+            }
+            
+            for(let i=craftParticles.length-1; i>=0; i--) { let p = craftParticles[i]; p.position.x += p.userData.vx; p.position.y += p.userData.vy; p.position.z += p.userData.vz; p.userData.life -= 0.02; p.material.opacity = p.userData.life; if(p.userData.life <= 0) { scene.remove(p); craftParticles.splice(i, 1); } }
+            let fireScale = Math.max(0.2, campfireHealth / 100); fireLight.intensity = fireScale * 4.0 + Math.random() * 0.5; for(let p of fireParticles) { p.position.y += p.userData.speedY; p.rotation.z += p.userData.rotSpeed; p.material.opacity -= 0.02; p.scale.multiplyScalar(0.98); if(p.material.opacity <= 0 || p.position.y > 3.5 * fireScale) resetFireParticle(p); }
+            
+            for(let p of pots) {
+                if(p.userData.isCooking) {
+                    p.userData.cookTimer -= delta;
+                    p.rotation.z = Math.sin(time * 30) * 0.1; 
+                    p.userData.liquidMesh.rotation.y += 0.05;
+                    p.userData.liquidMesh.position.y = 0.6 + Math.sin(time * 15) * 0.05; 
+                    if(p.userData.cookTimer <= 0) {
+                        p.userData.isCooking = false;
+                        p.rotation.z = 0;
+                        p.userData.liquidMesh.visible = false;
+                        spawnItem(p.position.x, p.position.z + 1.2, 'soup');
+                        showMessage("Hot Soup is Ready!", "#00ff00");
+                        spawnCraftingParticles(p.position);
+                    }
+                }
+            }
+
+            for(let animal of animals) { 
+                if(!isUIOpen && !isDead) { 
+                    if(Math.random() > 0.02) { animal.rotation.y += (Math.random() - 0.5) * 0.05; animal.translateZ(0.04); let angle = Math.sin(time * 10) * 0.3; animal.userData.legs[0].rotation.x = angle; animal.userData.legs[1].rotation.x = -angle; animal.userData.legs[2].rotation.x = -angle; animal.userData.legs[3].rotation.x = angle; } else { animal.userData.legs.forEach(leg => leg.rotation.x = 0); } 
+                    const aDist = Math.sqrt(animal.position.x**2 + animal.position.z**2); if(aDist > MAP_LIMIT - 2 || aDist < SAFE_ZONE_RADIUS || isInInn(animal.position.x, animal.position.z)) { animal.rotation.y += Math.PI; animal.translateZ(0.2); }
+                }
+            }
+
+            for(let w of wolves) {
+                if(w.userData.hp <= 0 || isDead) continue;
+                let distToPlayer = Math.sqrt((w.position.x - player.position.x)**2 + (w.position.z - player.position.z)**2);
+                if(!w.userData.aggro && !w.userData.cage && distToPlayer < (w.userData.isAlpha ? 7 : 5)) { w.userData.aggro = true; updateWolfHP(w); }
+
+                if(w.userData.aggro) {
+                    let angleToPlayer = Math.atan2(player.position.x - w.position.x, player.position.z - w.position.z);
+                    let diff = angleToPlayer - w.rotation.y;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    w.rotation.y += diff * 0.08; 
+                    
+                    if(Math.abs(diff) < 0.5 && distToPlayer > (w.userData.isAlpha ? 2.0 : 1.5)) {
+                        w.position.x += Math.sin(w.rotation.y) * w.userData.speed; 
+                        w.position.z += Math.cos(w.rotation.y) * w.userData.speed;
+                        let angleLeg = Math.sin(time * 20) * 0.8; 
+                        w.userData.legs[0].rotation.x = angleLeg; w.userData.legs[1].rotation.x = -angleLeg; w.userData.legs[2].rotation.x = -angleLeg; w.userData.legs[3].rotation.x = angleLeg;
+                    } else if (distToPlayer <= (w.userData.isAlpha ? 2.0 : 1.5)) {
+                        w.userData.legs.forEach(l => l.rotation.x = 0); 
+                        if(w.userData.attackCooldown <= 0) {
+                            let currentDamage = w.userData.damage;
+                            if (hasIronArmor) currentDamage = Math.floor(currentDamage * 0.4); 
+                            else if (hasWolfArmor) currentDamage = Math.floor(currentDamage * 0.8); 
+                            
+                            playerHP -= currentDamage; w.userData.attackCooldown = 1.0; updateUI(); showMessage(`${w.userData.isAlpha ? "ALFA" : "Wolf"} He bit! (-${currentDamage} Life)`, "#ff0000");
+                            if(playerHP <= 0) { isDead = true; document.getElementById('msgUI').innerHTML = "YOU'RE DEAD!<br>KURTLARA YEM OLDUN"; document.getElementById('msgUI').style.display = 'block'; document.exitPointerLock(); }
+                        }
+                    } else { w.userData.legs.forEach(l => l.rotation.x = 0); }
+                }
+                if(w.userData.attackCooldown > 0) w.userData.attackCooldown -= delta;
+                if(w.userData.hpSprite.visible) { w.userData.hpSprite.quaternion.copy(camera.quaternion); }
+            }
+
+            renderer.render(scene, camera);
+        }
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>F1 Death Race - Perfect Collisions and Environment</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; }
+        canvas { display: block; }
+        #arayuz {
+            position: absolute; top: 20px; width: 100%; text-align: center;
+            color: white; font-family: 'Arial Black', sans-serif;
+            text-shadow: 2px 2px 8px rgba(0,0,0,1); pointer-events: none;
+        }
+        #geriSayim {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 150px; font-family: 'Arial Black', sans-serif;
+            color: #00f2ff; text-shadow: 0 0 15px #00f2ff, 0 0 50px #00f2ff;
+            display: none; pointer-events: none; z-index: 100;
+        }
+        #bilgiPaneli {
+            position: absolute; bottom: 20px; left: 20px; color: #ffeb3b;
+            font-family: Arial, sans-serif; font-weight: bold; font-size: 16px;
+            text-shadow: 2px 2px 4px black; pointer-events: none;
+            background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 2px solid white;
+        }
+        #kontrolPanel {
+            position: absolute; top: 20px; width: 100%; pointer-events: none;
+        }
+        .buton {
+            pointer-events: auto; padding: 15px 25px; font-size: 18px; font-weight: bold;
+            border-radius: 10px; cursor: pointer; border: none; position: absolute; top: 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        .buton:active { transform: scale(0.95); }
+        #resetButon { right: 20px; background-color: #ffcc00; color: #002266; }
+        #cilginButon { left: 20px; background-color: #ff0000; color: white; border: 3px solid white; }
+    </style>
+</head>
+<body>
+
+    <div id="arayuz">
+        <h1 id="baslik">RED BULL DEATH RACE</h1>
+        <div style="font-size: 24px; color: #ffeb3b;">SPEED: <span id="hizGosterge">0</span> KM/H</div>
+    </div>
+    
+    <div id="geriSayim">3</div>
+    
+    <div id="bilgiPaneli" style="display:none;">
+        [ARROW KEYS] - Steering (Accelerator)<br>
+        [SPACE] - Machine Gun<br>
+        [E] - Front Spikes<br>
+        [R] - Launch a Bomb
+    </div>
+
+    <div id="kontrolPanel">
+        <button id="cilginButon" class="buton" onclick="yarisiBaslat(true)">CRAZY MODE (BATTLE)</button>
+        <button id="resetButon" class="buton" onclick="yarisiBaslat(false)">NORMAL RACE</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 150, 450);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1.5);
+        light.position.set(20, 50, 20);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        let isCrazy = false;
+        const rbSari = new THREE.MeshStandardMaterial({ color: 0xffcc00 });
+
+        // --- KAPLAMALAR ---
+        function createBrandedTexture(text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 512; canvas.height = 128;
+            ctx.font = "bold 90px Arial Black";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.strokeStyle = "black"; ctx.lineWidth = 10;
+            ctx.strokeText(text, 256, 64);
+            ctx.fillStyle = "white"; ctx.fillText(text, 256, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const fifaTex = createBrandedTexture("FIFA");
+
+        // --- ÇEVRE VE AĞAÇLAR ---
+        function devAgacOlustur() {
+            const agac = new THREE.Group();
+            const govde = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.2, 7, 8), new THREE.MeshStandardMaterial({ color: 0x4d2200 }));
+            govde.position.y = 3.5; agac.add(govde);
+            
+            const p1 = new THREE.Mesh(new THREE.SphereGeometry(3.5, 12, 12), new THREE.MeshStandardMaterial({ color: 0x052b05 }));
+            p1.position.y = 8; agac.add(p1);
+            const p2 = new THREE.Mesh(new THREE.SphereGeometry(2.5, 10, 10), new THREE.MeshStandardMaterial({ color: 0x074407 }));
+            p2.position.set(2.2, 6.5, 1.0); agac.add(p2);
+            const p3 = new THREE.Mesh(new THREE.SphereGeometry(2.0, 10, 10), new THREE.MeshStandardMaterial({ color: 0x043304 }));
+            p3.position.set(-1.8, 7.0, -1.0); agac.add(p3);
+            return agac;
+        }
+
+        function devBinaOlustur() {
+            const b = new THREE.Group();
+            const h = Math.random() * 25 + 20;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(12, h, 12), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            body.position.y = h/2; b.add(body);
+            for(let i=0; i < Math.floor(h/5); i++) {
+                const cam = new THREE.Mesh(new THREE.BoxGeometry(12.2, 1.5, 11), new THREE.MeshStandardMaterial({ color: 0x87CEFA }));
+                cam.position.y = (i+1)*5; b.add(cam);
+            }
+            return b;
+        }
+
+        // --- PİST (GÖRÜNÜRLÜK DÜZELTİLDİ) ---
+        let pistGrubu = new THREE.Group();
+        scene.add(pistGrubu);
+        let baslangicObjeleri = new THREE.Group();
+        scene.add(baslangicObjeleri);
+
+        function pistYenile() {
+            pistGrubu.clear();
+            const gen = isCrazy ? 60 : 25;
+            const seritSayisi = isCrazy ? 4 : 2; // Genişliğe göre şerit sayısı
+            const seritAraligi = gen / seritSayisi;
+
+            for(let i=0; i<8; i++) {
+                const grup = new THREE.Group();
+                const cim = new THREE.Mesh(new THREE.PlaneGeometry(1500, 100), new THREE.MeshStandardMaterial({ color: 0x1a441a }));
+                cim.rotation.x = -Math.PI / 2; grup.add(cim);
+                
+                const yol = new THREE.Mesh(new THREE.PlaneGeometry(gen, 100), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                yol.rotation.x = -Math.PI / 2; yol.position.y = 0.11; grup.add(yol);
+                
+                // Yola beyaz şeritler ekle (Hız ve derinlik hissi için)
+                for(let s=1; s<seritSayisi; s++) {
+                    const xOffset = -(gen/2) + (s * seritAraligi);
+                    for(let d=0; d<4; d++) {
+                        const serit = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                        serit.rotation.x = -Math.PI / 2;
+                        serit.position.set(xOffset, 0.12, (d * 25) - 37.5);
+                        grup.add(serit);
+                    }
+                }
+                
+                // Duvarlar ve kırmızı sınır çizgileri
+                [-(gen/2), (gen/2)].forEach(x => {
+                    const duvar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 100), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+                    duvar.position.set(x, 1, 0); grup.add(duvar);
+                    
+                    // Kırmızı sınır neon şeridi (Pistin nerede bittiğini gösterir)
+                    const sinirCizgisi = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 100), new THREE.MeshBasicMaterial({ color: 0xdd0000 }));
+                    sinirCizgisi.position.set(x, 1.9, 0); grup.add(sinirCizgisi);
+
+                    for(let j=0; j<4; j++) {
+                        const pano = new THREE.Mesh(new THREE.PlaneGeometry(6.9, 1.38), new THREE.MeshBasicMaterial({map:fifaTex, transparent:true}));
+                        const sideOfset = x > 0 ? -0.45 : 0.45; 
+                        pano.position.set(x + sideOfset, 1.2, (j*25)-37.5);
+                        pano.rotation.y = x > 0 ? -Math.PI/2 : Math.PI/2;
+                        grup.add(pano);
+                    }
+                });
+                
+                const objeSayisi = isCrazy ? 20 : 12; 
+                for(let k=0; k<objeSayisi; k++) {
+                    const side = (Math.random() > 0.5 ? 1 : -1);
+                    const minMesafe = (gen/2) + 4; 
+                    const xPos = side * (Math.random() * 80 + minMesafe);
+                    const obj = Math.random() > 0.4 ? devBinaOlustur() : devAgacOlustur();
+                    obj.position.set(xPos, 0, (Math.random()*100)-50);
+                    grup.add(obj);
+                }
+                grup.position.z = -i * 100;
+                pistGrubu.add(grup);
+            }
+        }
+
+        // --- OYUNCU ---
+        let oyuncuDikenler;
+        let onTekerlekler = [];
+
+        function f1OyuncuOlustur() {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x002266 });
+            
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 2.2), mat);
+            body.position.y = 0.5; g.add(body);
+            const aKanat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.7), mat);
+            aKanat.position.set(0, 1.2, 1); g.add(aKanat);
+            const oKanat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.6), mat);
+            oKanat.position.set(0, 0.3, -1.8); g.add(oKanat);
+            const tCam = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.4), rbSari);
+            tCam.position.set(0, 1.0, -0.2); g.add(tCam);
+            
+            onTekerlekler = []; 
+            const tGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.5, 16);
+            const tMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const jGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.51, 16);
+            const jMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            [{x:-1,z:0.8, isFront:false}, {x:1,z:0.8, isFront:false}, 
+             {x:-0.9,z:-1.2, isFront:true}, {x:0.9,z:-1.2, isFront:true}].forEach(p => {
+                const pivot = new THREE.Group();
+                pivot.position.set(p.x, 0.45, p.z);
+                const t = new THREE.Mesh(tGeo, tMat); t.rotation.z = Math.PI/2; pivot.add(t);
+                const j = new THREE.Mesh(jGeo, jMat); j.rotation.z = Math.PI/2; pivot.add(j);
+                g.add(pivot);
+                if(p.isFront) onTekerlekler.push(pivot);
+            });
+
+            oyuncuDikenler = new THREE.Group();
+            const dikenGeo = new THREE.ConeGeometry(0.15, 2.5, 8);
+            const dikenMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 1.0, roughness: 0.1 });
+            const d1 = new THREE.Mesh(dikenGeo, dikenMat); d1.rotation.x = -Math.PI / 2; d1.position.set(-0.6, 0.4, 0); oyuncuDikenler.add(d1);
+            const d2 = new THREE.Mesh(dikenGeo, dikenMat); d2.rotation.x = -Math.PI / 2; d2.position.set(0.6, 0.4, 0); oyuncuDikenler.add(d2);
+            oyuncuDikenler.position.z = -1.0; oyuncuDikenler.visible = false;
+            g.add(oyuncuDikenler);
+
+            return g;
+        }
+
+        const oyuncu = f1OyuncuOlustur();
+        scene.add(oyuncu);
+
+        // --- RAKİPLER ---
+        function f1RakipOlustur(renk, isim) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: renk });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 2.2), mat);
+            body.position.y = 0.5; g.add(body);
+            const aKanat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.7), mat);
+            aKanat.position.set(0, 1.2, 1); g.add(aKanat);
+            const tCam = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.4), rbSari);
+            tCam.position.set(0, 1.0, -0.2); g.add(tCam);
+            
+            const tGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.5, 16);
+            const tMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const jGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.51, 16);
+            const jMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            [{x:-1,z:0.8}, {x:1,z:0.8}, {x:-0.9,z:-1.2}, {x:0.9,z:-1.2}].forEach(p => {
+                const t = new THREE.Mesh(tGeo, tMat); t.rotation.z = Math.PI/2; t.position.set(p.x, 0.45, p.z); g.add(t);
+                const j = new THREE.Mesh(jGeo, jMat); j.rotation.z = Math.PI/2; j.position.set(p.x, 0.45, p.z); g.add(j);
+            });
+            return g;
+        }
+
+        let rakipler = [];
+        let mermiler = [];
+        let bombalar = [];
+        let parcaciklar = [];
+
+        function rakipleriDiz() {
+            rakipler.forEach(r => scene.remove(r.mesh));
+            rakipler = [];
+            const diller = [{ r: 0xC0C0C0, n: "MERCEDES", v: 0.65 }, { r: 0xFF8700, n: "MCLAREN", v: 0.75 }, { r: 0xFF0000, n: "FERRARI", v: 0.85 }];
+            const toplamRakip = isCrazy ? 25 : 3; 
+            const gen = isCrazy ? 60 : 25;
+
+            for(let i=0; i<toplamRakip; i++) {
+                const tur = diller[i % 3];
+                const m = f1RakipOlustur(tur.r, tur.n);
+                let x, z;
+                if(isCrazy) {
+                    x = (Math.random() - 0.5) * (gen - 5); 
+                    z = -20 - (Math.random() * 300);
+                } else {
+                    x = ((i % 2 === 0 ? -1 : 1) * (gen * 0.25));
+                    z = 30 - ((Math.floor(i/2) + 1) * 15);
+                }
+                m.position.set(x, 0, z);
+                rakipler.push({ mesh: m, hp: 100, v: tur.v + (Math.random()*0.15) });
+                scene.add(m);
+            }
+        }
+
+        // --- EFEKTLER ---
+        function patlamaEfekti(pos) {
+            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            for(let i=0; i<20; i++) {
+                const p = new THREE.Mesh(geo, mat); p.position.copy(pos);
+                p.userData.velocity = new THREE.Vector3((Math.random()-0.5), Math.random(), (Math.random()-0.5)).normalize().multiplyScalar(0.5);
+                scene.add(p); parcaciklar.push(p);
+            }
+        }
+        function buyukPatlamaEfekti(pos) {
+            const geo = new THREE.SphereGeometry(3, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent:true, opacity: 0.8 });
+            const fire = new THREE.Mesh(geo, mat); fire.position.copy(pos); scene.add(fire);
+            setTimeout(()=>scene.remove(fire), 200);
+            patlamaEfekti(pos);
+        }
+        // Duvara sürtme kıvılcımı
+        function kivilcimEfekti(pos) {
+            if(Math.random() > 0.4) return; // Performans için her frame basmasın
+            const geo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            for(let i=0; i<3; i++) {
+                const p = new THREE.Mesh(geo, mat); p.position.copy(pos);
+                p.userData.velocity = new THREE.Vector3((Math.random()-0.5)*0.3, Math.random()*0.4, (Math.random()-0.5)*0.3);
+                scene.add(p); parcaciklar.push(p);
+            }
+        }
+
+        // --- FİZİK DEĞİŞKENLERİ ---
+        let hiz = 0, canMove = false, tuslar = {};
+        let dikenAktif = false, bombaBekleme = false;
+        let tekerlekAcisi = 0;
+        let arabaAcisi = 0;
+        
+        window.onkeydown = (e) => {
+            tuslar[e.code] = true;
+            if(canMove && isCrazy) {
+                if(e.code === "Space") atesEt(); 
+                if(e.code === "KeyE") dikenAc();
+                if(e.code === "KeyR") bombaAt();
+            }
+        };
+        window.onkeyup = (e) => tuslar[e.code] = false;
+
+        function getCarDirectionVector() {
+            const x = -Math.sin(arabaAcisi);
+            const z = -Math.cos(arabaAcisi);
+            return new THREE.Vector3(x, 0, z).normalize();
+        }
+
+        function atesEt() {
+            const geo = new THREE.SphereGeometry(0.2, 8, 8);
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+            const dir = getCarDirectionVector();
+            m.position.copy(oyuncu.position).add(dir.clone().multiplyScalar(2));
+            m.position.y = 0.7;
+            m.userData.velocity = dir.multiplyScalar(2.0); 
+            scene.add(m); mermiler.push(m);
+        }
+
+        function bombaAt() {
+            if(bombaBekleme) return;
+            bombaBekleme = true; setTimeout(() => bombaBekleme = false, 2000);
+            const b = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 12), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            const dir = getCarDirectionVector();
+            b.position.copy(oyuncu.position).add(dir.clone().multiplyScalar(1.5));
+            b.position.y = 2.0;
+            b.userData = { vel: dir.multiplyScalar(1.5), vy: 0.8 };
+            scene.add(b); bombalar.push(b);
+        }
+
+        function dikenAc() {
+            if(dikenAktif) return;
+            dikenAktif = true; oyuncuDikenler.visible = true; oyuncuDikenler.position.z = -2.5;
+            setTimeout(() => { oyuncuDikenler.position.z = -1.0; oyuncuDikenler.visible = false; dikenAktif = false; }, 3000);
+        }
+
+        function yarisiBaslat(crazy) {
+            isCrazy = crazy;
+            document.getElementById("baslik").innerText = isCrazy ? "DEATH RACE SIMULATOR" : "RED BULL RACING";
+            document.getElementById("bilgiPaneli").style.display = isCrazy ? "block" : "none";
+            pistYenile(); rakipleriDiz();
+            mermiler.forEach(m => scene.remove(m)); mermiler = [];
+            bombalar.forEach(b => scene.remove(b)); bombalar = [];
+            parcaciklar.forEach(p => scene.remove(p)); parcaciklar = [];
+            
+            oyuncu.position.set(0, 0, 45);
+            oyuncu.rotation.set(0,0,0);
+            hiz = 0; canMove = false; dikenAktif = false; oyuncuDikenler.visible = false;
+            tekerlekAcisi = 0; arabaAcisi = 0;
+            
+            baslangicObjeleri.clear();
+            const g = isCrazy ? 60 : 25;
+            const c = new THREE.Mesh(new THREE.PlaneGeometry(g, 6), rbSari);
+            c.rotation.x = -Math.PI/2; c.position.set(0, 0.15, 45); baslangicObjeleri.add(c);
+            
+            const sEl = document.getElementById("geriSayim"); sEl.style.display = "block";
+            let s = 3; sEl.innerText = s;
+            const t = setInterval(() => {
+                s--;
+                if(s > 0) sEl.innerText = s;
+                else if(s === 0) { sEl.innerText = "START!"; canMove = true; hiz = 0.20; }
+                else { sEl.style.display = "none"; clearInterval(t); }
+            }, 1000);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            for(let i = parcaciklar.length - 1; i >= 0; i--) {
+                const p = parcaciklar[i]; p.position.add(p.userData.velocity); p.userData.velocity.y -= 0.02; p.scale.multiplyScalar(0.9);
+                if(p.scale.x < 0.05) { scene.remove(p); parcaciklar.splice(i, 1); }
+            }
+
+            if (canMove) {
+                if (tuslar["ArrowUp"]) hiz += 0.006;
+                if (tuslar["ArrowDown"]) hiz -= 0.015;
+                hiz = Math.max(0.0, Math.min(1.40, hiz)); 
+                
+                const tekerDonusHizi = 0.04;
+                const maxTekerAcisi = 0.6;
+                if (tuslar["ArrowLeft"]) { tekerlekAcisi += tekerDonusHizi; } 
+                else if (tuslar["ArrowRight"]) { tekerlekAcisi -= tekerDonusHizi; } 
+                else { tekerlekAcisi *= 0.85; }
+                tekerlekAcisi = Math.max(-maxTekerAcisi, Math.min(maxTekerAcisi, tekerlekAcisi));
+
+                if (hiz > 0.01) { arabaAcisi += tekerlekAcisi * hiz * 0.010; }
+                
+                onTekerlekler.forEach(t => t.rotation.y = tekerlekAcisi);
+                oyuncu.rotation.y = arabaAcisi;
+
+                oyuncu.position.x -= Math.sin(arabaAcisi) * hiz;
+                oyuncu.position.z -= Math.cos(arabaAcisi) * hiz;
+
+                // --- MÜKEMMEL DUVARA SÜRTÜNME FİZİĞİ ---
+                const lim = (isCrazy ? 30 : 12.5) - 1.2;
+                
+                if(oyuncu.position.x > lim) { 
+                    oyuncu.position.x = lim; 
+                    hiz *= 0.98; // Araba durmaz, sadece hafif yavaşlar (Sürtünme)
+                    if(arabaAcisi < 0) arabaAcisi *= 0.85; // Burnu yavaşça yola doğru çevirir
+                    kivilcimEfekti(new THREE.Vector3(oyuncu.position.x + 0.6, 0.4, oyuncu.position.z));
+                }
+                if(oyuncu.position.x < -lim) { 
+                    oyuncu.position.x = -lim; 
+                    hiz *= 0.98; 
+                    if(arabaAcisi > 0) arabaAcisi *= 0.85;
+                    kivilcimEfekti(new THREE.Vector3(oyuncu.position.x - 0.6, 0.4, oyuncu.position.z));
+                }
+
+                // --- SİLAHLAR VE ÇARPIŞMALAR ---
+                for(let i = mermiler.length - 1; i >= 0; i--) {
+                    const m = mermiler[i]; m.position.add(m.userData.velocity);
+                    if(m.position.distanceTo(oyuncu.position) > 200) { scene.remove(m); mermiler.splice(i, 1); continue; }
+                    rakipler.forEach((r, rIdx) => {
+                        if(m.position.distanceTo(r.mesh.position) < 2.5) {
+                            r.hp -= 20; scene.remove(m); mermiler.splice(i, 1);
+                            r.mesh.position.y = 0.5; setTimeout(()=>r.mesh.position.y=0, 50);
+                            if(r.hp <= 0) { patlamaEfekti(r.mesh.position); scene.remove(r.mesh); rakipler.splice(rIdx, 1); }
+                        }
+                    });
+                }
+                for(let i = bombalar.length - 1; i >= 0; i--) {
+                    const b = bombalar[i]; b.position.add(b.userData.vel); b.position.y += b.userData.vy; b.userData.vy -= 0.05;
+                    if(b.position.y <= 0) {
+                        buyukPatlamaEfekti(b.position);
+                        rakipler.forEach((r, rIdx) => {
+                            if(b.position.distanceTo(r.mesh.position) < 15) {
+                                r.hp -= 50; r.mesh.position.y = 2.0; setTimeout(()=>r.mesh.position.y=0, 100);
+                                if(r.hp <= 0) { scene.remove(r.mesh); rakipler.splice(rIdx, 1); }
+                            }
+                        });
+                        scene.remove(b); bombalar.splice(i, 1);
+                    }
+                }
+                for (let i = rakipler.length - 1; i >= 0; i--) {
+                    const r = rakipler[i]; r.mesh.position.z -= r.v;
+                    
+                    if (dikenAktif && oyuncu.position.distanceTo(r.mesh.position) < 4.0 && (r.mesh.position.z < oyuncu.position.z)) {
+                        patlamaEfekti(r.mesh.position); scene.remove(r.mesh); rakipler.splice(i, 1); continue;
+                    }
+                    if (oyuncu.position.distanceTo(r.mesh.position) < 2.5) {
+                         hiz = Math.max(0.20, hiz - 0.50);
+                         oyuncu.position.z += 2; 
+                    }
+                }
+            }
+            document.getElementById("hizGosterge").innerText = (hiz * 300).toFixed(0);
+
+            const camDist = isCrazy ? 16 : 10; const camHeight = isCrazy ? 9 : 6;
+            const targetX = oyuncu.position.x + Math.sin(arabaAcisi) * camDist;
+            const targetZ = oyuncu.position.z + Math.cos(arabaAcisi) * camDist;
+            camera.position.x += (targetX - camera.position.x) * 0.1;
+            camera.position.z += (targetZ - camera.position.z) * 0.1;
+            camera.position.y = camHeight;
+            camera.lookAt(oyuncu.position);
+
+            pistGrubu.children.forEach(p => { if(p.position.z > camera.position.z + 50) p.position.z -= 800; });
+            renderer.render(scene, camera);
+        }
+        animate();
+        yarisiBaslat(false);
+    </script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Square Pass</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #0b0e14;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        #gameWrapper {
+            position: relative;
+            transition: transform 0.1s ease; /* Ekran sallama efekti için */
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            box-shadow: 0 0 30px rgba(0, 255, 200, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #gameCanvas {
+            background-color: #1a252f; 
+            transition: background-color 1.5s ease;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 25px;
+            font-size: 26px;
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+
+        #speedIndicator {
+            position: absolute;
+            top: 55px;
+            left: 25px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+
+        #startScreen {
+            background-color: rgba(11, 14, 20, 0.85);
+        }
+
+        #gameOverScreen {
+            background-color: rgba(20, 10, 10, 0.9);
+            display: none; 
+        }
+
+        h1 {
+            color: #ff4757;
+            margin-bottom: 5px;
+            font-size: 42px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px rgba(255, 71, 87, 0.5);
+        }
+
+        h2 {
+            font-size: 36px;
+            color: #2ed573;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(46, 213, 115, 0.4);
+        }
+
+        p {
+            font-size: 16px;
+            color: #a4b0be;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        button {
+            padding: 14px 35px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #1e90ff, #3742fa);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(55, 66, 250, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(55, 66, 250, 0.6);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameWrapper">
+        <div id="gameContainer">
+            <canvas id="gameCanvas" width="400" height="600"></canvas>
+            
+            <div id="ui">SCORE: <span id="scoreText">0</span></div>
+            <div id="speedIndicator">Speed: <span id="speedText">1.0x</span></div>
+
+            <div id="startScreen" class="screen">
+                <h2>SQUARE PASS</h2>
+                <p>Use the arrow keys or click the right/left of the screen.<br><br><i>The game will gradually speed up!</i></p>
+                <button id="startBtn">Start</button>
+            </div>
+
+            <div id="gameOverScreen" class="screen">
+                <h1>GAME OVER</h1>
+                <p>Your Score: <strong style="color: #fff; font-size: 24px;" id="finalScore">0</strong></p>
+                <button id="restartBtn">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <audio id="bgMusic" loop>
+        <source src="https://assets.mixkit.co/music/preview/mixkit-game-level-music-689.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameWrapper = document.getElementById('gameWrapper');
+        const scoreText = document.getElementById('scoreText');
+        const speedText = document.getElementById('speedText');
+        const finalScoreText = document.getElementById('finalScore');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const startScreen = document.getElementById('startScreen');
+        const bgMusic = document.getElementById('bgMusic');
+
+        // Ayarlar ve Değişkenler
+        let animationId;
+        let score = 0;
+        let isGameRunning = false;
+        let frameCount = 0;
+        
+        // Hızlanma Parametreleri
+        const START_SPEED = 3.5;
+        let obstacleSpeed = START_SPEED;
+        const SPEED_INCREMENT = 0.0008; // Her karede hızın ne kadar artacağı (yavaş yavaş hızlanma)
+
+        // Nesne Tanımlamaları
+        const player = {
+            x: canvas.width / 2 - 15,
+            y: canvas.height - 100,
+            size: 26,
+            speed: 6.5,
+            dx: 0
+        };
+
+        let obstacles = [];
+        let particles = []; // Patlama efektleri için dizi
+
+        // Ekran Sallama Fonksiyonu
+        function shakeScreen() {
+            let intensity = 10;
+            let interval = setInterval(() => {
+                let dx = (Math.random() - 0.5) * intensity;
+                let dy = (Math.random() - 0.5) * intensity;
+                gameWrapper.style.transform = `translate(${dx}px, ${dy}px)`;
+                intensity *= 0.8;
+                if(intensity < 0.5) {
+                    clearInterval(interval);
+                    gameWrapper.style.transform = 'translate(0px, 0px)';
+                }
+            }, 1000 / 60);
+        }
+
+        // Patlama Efekti (Parçacık Yaratma)
+        function createExplosion(x, y) {
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x: x + player.size / 2,
+                    y: y + player.size / 2,
+                    size: Math.random() * 4 + 2,
+                    dx: (Math.random() - 0.5) * 8,
+                    dy: (Math.random() - 0.5) * 8,
+                    alpha: 1,
+                    color: '#ffffff'
+                });
+            }
+        }
+
+        // Kontroller (Klavye)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') player.dx = -player.speed;
+            if (e.key === 'ArrowRight') player.dx = player.speed;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.dx = 0;
+        });
+
+        // Kontroller (Fare/Dokunmatik)
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            if ((e.clientX - rect.left) < canvas.width / 2) player.dx = -player.speed;
+            else player.dx = player.speed;
+        });
+        canvas.addEventListener('mouseup', () => player.dx = 0);
+        canvas.addEventListener('touchstart', (e) => {
+            const touchX = e.touches[0].clientX;
+            if (touchX < window.innerWidth / 2) player.dx = -player.speed;
+            else player.dx = player.speed;
+        });
+        canvas.addEventListener('touchend', () => player.dx = 0);
+
+        // Yeni Gelişmiş Engel Oluşturma
+        function spawnObstacle() {
+            const isLeft = Math.random() < 0.5;
+            const gap = player.size * 3.2; 
+            const width = Math.floor(Math.random() * (canvas.width - gap - 60)) + 60;
+            
+            // Eğer skor 10'dan büyükse %40 ihtimalle hareket eden engel yap
+            let isMoving = score >= 10 && Math.random() < 0.4;
+
+            obstacles.push({
+                x: isLeft ? 0 : canvas.width - width,
+                y: -40,
+                width: width,
+                height: 25,
+                passed: false,
+                isMoving: isMoving,
+                moveDir: isLeft ? 1 : -1, // Sağ veya sola hareket yönü
+                moveSpeed: Math.random() * 1 + 0.5,
+                color: isMoving ? '#ffcc00' : '#f1f2f6' // Hareketliler sarı, sabitler beyaz/gri
+            });
+        }
+
+        // Dinamik Arka Plan Değişimi
+        function updateBackground() {
+            if (score < 5) canvas.style.backgroundColor = '#1e272e';
+            else if (score < 10) canvas.style.backgroundColor = '#0be881';
+            else if (score < 20) canvas.style.backgroundColor = '#ff5e57';
+            else canvas.style.backgroundColor = '#5f27cd';
+        }
+
+        // Ana Döngü
+        function update() {
+            // Oyun bitse bile parçacıkların uçuşmaya devam etmesi için temizliği üstte yapıyoruz
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateBackground();
+
+            // SÜREKLİ VE YAVAŞ HIZLANMA MEKANİZMASI
+            if (isGameRunning) {
+                obstacleSpeed += SPEED_INCREMENT;
+                // Arayüzdeki hız çarpanı göstergesini güncelle (örn: 1.2x)
+                speedText.innerText = (obstacleSpeed / START_SPEED).toFixed(1) + "x";
+            }
+
+            // 1. Oyuncu İşlemleri
+            if (isGameRunning) {
+                player.x += player.dx;
+                if (player.x < 0) player.x = 0;
+                if (player.x + player.size > canvas.width) player.x = canvas.width - player.size;
+
+                // Oyuncuyu Parlama Efekti ile Çiz
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffffff';
+                ctx.fillRect(player.x, player.y, player.size, player.size);
+                ctx.shadowBlur = 0; // Diğer çizimleri etkilemesin
+            }
+
+            // 2. Engel İşlemleri
+            frameCount++;
+            // Hızlandıkça engellerin geliş sıklığını biraz sıklaştırıyoruz
+            let spawnInterval = Math.max(35, Math.floor(240 / obstacleSpeed));
+            if (isGameRunning && frameCount % spawnInterval === 0) {
+                spawnObstacle();
+            }
+
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                if (isGameRunning) {
+                    obs.y += obstacleSpeed;
+
+                    // Eğer hareketli engelse sağa sola kaydır
+                    if (obs.isMoving) {
+                        obs.x += obs.moveDir * obs.moveSpeed;
+                        // Duvarlara çarpınca geri dönsün
+                        if (obs.x <= 0 || obs.x + obs.width >= canvas.width) {
+                            obs.moveDir *= -1;
+                        }
+                    }
+                }
+
+                // Engeli Çiz (Glow/Neon Efektiyle)
+                ctx.fillStyle = obs.color;
+                if(obs.isMoving) {
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = obs.color;
+                }
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.shadowBlur = 0;
+
+                // Çarpışma Testi
+                if (isGameRunning &&
+                    player.x < obs.x + obs.width &&
+                    player.x + player.size > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.size > obs.y) {
+                    triggerGameOver();
+                }
+
+                // Skor Sayacı
+                if (obs.y > player.y + player.size && !obs.passed) {
+                    score++;
+                    scoreText.innerText = score;
+                    obs.passed = true;
+                }
+            }
+            // Ekrandan çıkanları sil
+            obstacles = obstacles.filter(obs => obs.y < canvas.height);
+
+            // 3. Görsel Efekt Parçacıkları (Patlama) Döngüsü
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                p.x += p.dx;
+                p.y += p.dy;
+                p.alpha -= 0.02; // Zamanla solma
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.restore();
+            }
+            particles = particles.filter(p => p.alpha > 0);
+
+            animationId = requestAnimationFrame(update);
+        }
+
+        // Oyun Bitme Tetikleyicisi
+        function triggerGameOver() {
+            isGameRunning = false;
+            bgMusic.pause();
+            shakeScreen(); // Ekranı sars
+            createExplosion(player.x, player.y); // Oyuncuyu patlat
+            
+            setTimeout(() => {
+                finalScoreText.innerText = score;
+                gameOverScreen.style.display = 'flex';
+            }, 800); // Patlama izlenebilsin diye ekranı yarım saniye sonra getir
+        }
+
+        // Başlatma / Resetleme
+        function initGame() {
+            score = 0;
+            frameCount = 0;
+            obstacleSpeed = START_SPEED;
+            obstacles = [];
+            particles = [];
+            player.x = canvas.width / 2 - 15;
+            player.dx = 0;
+            scoreText.innerText = score;
+            speedText.innerText = "1.0x";
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            bgMusic.currentTime = 0;
+            bgMusic.play().catch(e => console.log("Müzik yüklenemedi veya engellendi."));
+            
+            isGameRunning = true;
+        }
+
+        document.getElementById('startBtn').addEventListener('click', initGame);
+        document.getElementById('restartBtn').addEventListener('click', initGame);
+
+        // Döngüyü ilk andan itibaren başlat (Efektlerin çizilebilmesi için oyun dururken de çalışmalı)
+        update();
+    </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Pokemon</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; user-select: none; }
+        canvas { display: block; image-rendering: pixelated; }
+        
+        #ui { position: absolute; top: 10px; left: 10px; color: white; text-shadow: 1px 1px black; z-index: 10; font-weight: bold;}
+        
+        #dialogueBox {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 80%; background-color: rgba(255, 255, 255, 0.9); border: 4px solid #34495e;
+            border-radius: 10px; padding: 15px; font-size: 20px; font-weight: bold; color: #2c3e50;
+            display: none; box-shadow: 5px 5px 0px rgba(0,0,0,0.5); z-index: 20;
+        }
+
+        #starterSelection {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #f1c40f; border: 6px solid #e67e22; border-radius: 15px; padding: 20px;
+            text-align: center; display: none; z-index: 30; box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        .poke-btn { background: white; border: 3px solid #333; padding: 10px 20px; margin: 10px; font-size: 18px; font-weight: bold; cursor: pointer; border-radius: 8px; transition: 0.2s; }
+        .poke-btn:hover { background: #eee; transform: scale(1.1); }
+
+        /* POKEMON TAKIM EKRANI (E TUŞU) */
+        #pokemonMenu {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 300px; background: #2ecc71; border: 5px solid #27ae60; border-radius: 10px;
+            padding: 20px; display: none; z-index: 25; box-shadow: 5px 5px 15px rgba(0,0,0,0.8);
+            color: white; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black;
+        }
+
+        /* YENİ SAVAŞ EKRANI */
+        #battleScreen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #ecf0f1; display: none; z-index: 40; flex-direction: column;
+        }
+        .battle-top { flex: 1; position: relative; border-bottom: 4px solid #333; background: #a8e6cf; }
+        .battle-bottom { height: 180px; background: #fff; padding: 20px; display: flex; flex-direction: column; justify-content: space-around; }
+        
+        .health-box { background: rgba(255,255,255,0.8); border: 2px solid #333; padding: 10px; border-radius: 5px; font-size: 20px; font-weight: bold; }
+        #enemyHealthBox { position: absolute; top: 10%; left: 10%; }
+        #playerHealthBox { position: absolute; bottom: 10%; right: 10%; }
+        
+        #enemySprite { position: absolute; top: 20%; right: 15%; font-size: 80px; }
+        #playerSprite { position: absolute; bottom: 10%; left: 15%; font-size: 100px; }
+        
+        #battleMsg { font-size: 22px; font-weight: bold; margin-bottom: 10px; }
+        .moves-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .move-btn { font-size: 20px; padding: 15px; background: #ecf0f1; border: 3px solid #bdc3c7; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .move-btn:hover { background: #dcdde1; border-color: #34495e; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Movement: WASD | Interaction: R | Team Menu: E</div>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="dialogueBox"><span id="dialogueText"></span><div style="font-size: 14px; margin-top: 10px;">(Press R to continue)</div></div>
+    
+    <div id="pokemonMenu">
+        <h2 style="margin-top:0; border-bottom: 2px solid white; padding-bottom: 5px;">MY TEAM</h2>
+        <div id="teamInfo">You don't have any Pokémon yet!</div>
+    </div>
+
+    <div id="starterSelection">
+        <h2>The Professor's Bag!</h2>
+        <button class="poke-btn" style="color: #27ae60;" onclick="chooseStarter('Treecko', '🦎')">Treecko</button>
+        <button class="poke-btn" style="color: #c0392b;" onclick="chooseStarter('Torchic', '🔥')">Torchic</button>
+        <button class="poke-btn" style="color: #2980b9;" onclick="chooseStarter('Mudkip', '💧')">Mudkip</button>
+    </div>
+
+    <div id="battleScreen">
+        <div class="battle-top">
+            <div id="enemyHealthBox" class="health-box"><span id="enemyName">Wild Pokemon</span><br>HP: <span id="enemyHP">10</span>/10</div>
+            <div id="enemySprite">🐺</div>
+            
+            <div id="playerHealthBox" class="health-box"><span id="myPokeName">Pokemon</span><br>HP: <span id="myHP">20</span>/20</div>
+            <div id="playerSprite"></div>
+        </div>
+        <div class="battle-bottom">
+            <div id="battleMsg">A wild Pokémon has attacked! What will you do?</div>
+            <div class="moves-grid" id="movesContainer">
+                <button class="move-btn" onclick="useMove('Tackle')">Tackle</button>
+                <button class="move-btn" onclick="useMove('Growl')">Growl</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+    const TILE = 50; 
+    let gameState = "PLAYING"; // PLAYING, DIALOGUE, BATTLE, MENU
+    let currentMapId = 2;
+    let profRescued = false;
+
+    // POKEMON BİLGİLERİMİZ
+    let myPokemon = null; // Başta pokemonumuz yok
+    let currentEnemy = null;
+
+    // YENİ HARİTA SİSTEMİ: 10(PokeCenter Kırmızı), 11(PokeMart Mavi), 12(Beyaz Duvar)
+    const maps = {
+        0: [ [1,1,1,1,1,1],[1,0,0,0,0,1],[1,0,0,0,2,1],[1,1,1,1,1,1] ],
+        1: [ [1,1,1,1,1,1,1,1],[1,0,0,0,0,0,3,1],[1,0,0,0,0,0,0,1],[1,1,1,4,4,1,1,1] ],
+        2: [ // BÜYÜTÜLMÜŞ LITTLEROOT (Sol Bizim Ev, Sağ Profesörün Evi)
+            [1,1,1,1,1, 7,7, 1,1,1,1,1],
+            [1,5,5,5,5, 7,7, 5,5,5,5,1],
+            [1,5,9,9,5, 7,7, 5,9,9,5,1], // 9 = Kırmızı Çatı
+            [1,5,8,8,5, 7,7, 5,8,8,5,1], // 8 = Ahşap Duvar
+            [1,5,8,4,5, 7,7, 5,4,8,5,1], // 4 = Kapılar
+            [1,5,7,7,7, 7,7, 7,7,7,5,1],
+            [1,1,1,1,1, 1,1, 1,1,1,1,1]
+        ],
+        3: [ // BÜYÜTÜLMÜŞ ROUTE 101 (Yukarıya Doğru Gider)
+            [1,1,1,1,7,7,1,1,1,1],
+            [1,6,6,6,7,7,6,6,6,1], // 6 = Uzun Ot (Savaş çıkar)
+            [1,6,6,6,7,7,6,6,6,1],
+            [1,1,1,5,7,7,5,1,1,1],
+            [1,6,6,5,7,7,5,6,6,1],
+            [1,1,1,5,7,7,5,1,1,1], // Profesör burada
+            [1,5,5,5,7,7,5,5,5,1], 
+            [1,1,1,1,7,7,1,1,1,1]
+        ],
+        4: [ // YENİ: OLDALE TOWN (Poke Center & Mart)
+            [1,1,1,1,1, 1,1, 1,1,1,1,1],
+            [1,5,5,5,5, 5,5, 5,5,5,5,1],
+            [1,5,10,10,5, 5,11,11,5,1], // 10: Center Çatı(Kırmızı), 11: Mart Çatı(Mavi)
+            [1,5,12,12,5, 5,12,12,5,1], // 12: Beyaz Bina Duvarı
+            [1,5,12,4,5, 5,12,4,5,1],  // Kapılar
+            [1,5,7,7,7, 7,7, 7,7,5,1],
+            [1,1,1,1,1, 7,7, 1,1,1,1,1]
+        ]
+    };
+
+    let player = { x: 5, y: 5, pixelX: 5*TILE, pixelY: 5*TILE, facing: "up", isMoving: false };
+
+    let npcs = [
+        { id: "mom", map: 1, x: 2, y: 2, color: "#e84393", facing: "right" },
+        { id: "prof", map: 3, x: 4, y: 5, color: "#ecf0f1", facing: "down" },
+        { id: "dog", map: 3, x: 4, y: 6, color: "#34495e", facing: "up" },
+        { id: "bag", map: 3, x: 5, y: 6, color: "#8e44ad", facing: "down" }
+    ];
+
+    const dialogueBox = document.getElementById("dialogueBox");
+    const dialogueText = document.getElementById("dialogueText");
+    let dialogueQueue = [];
+
+    function showDialogue(texts) { dialogueQueue = texts; gameState = "DIALOGUE"; dialogueBox.style.display = "block"; nextDialogue(); }
+    function nextDialogue() {
+        if (dialogueQueue.length > 0) dialogueText.innerText = dialogueQueue.shift();
+        else { dialogueBox.style.display = "none"; gameState = "PLAYING"; }
+    }
+
+    // E TUŞU (MENÜ) VE R TUŞU (ETKİLEŞİM)
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "e" || e.key === "E") {
+            if (gameState === "PLAYING") {
+                gameState = "MENU";
+                document.getElementById("pokemonMenu").style.display = "block";
+                if(myPokemon) {
+                    document.getElementById("teamInfo").innerHTML = `${myPokemon.emoji} ${myPokemon.name}<br>Level: ${myPokemon.lvl}<br>Life: ${myPokemon.hp} / ${myPokemon.maxHp}`;
+                }
+            } else if (gameState === "MENU") {
+                gameState = "PLAYING";
+                document.getElementById("pokemonMenu").style.display = "none";
+            }
+        }
+
+        if (e.key === "r" || e.key === "R") {
+            if (gameState === "DIALOGUE") nextDialogue();
+            else if (gameState === "PLAYING" && !player.isMoving) {
+                let tx = player.x, ty = player.y;
+                if(player.facing==="up") ty--; if(player.facing==="down") ty++;
+                if(player.facing==="left") tx--; if(player.facing==="right") tx++;
+
+                let npc = npcs.find(n => n.map === currentMapId && n.x === tx && n.y === ty);
+                if (npc) {
+                    if (npc.id === "mom") showDialogue(["Mom: Be careful! Don’t go into the tall grass!"]);
+                    else if (npc.id === "prof" && !profRescued) showDialogue(["Prof. Birch: Help! Save me!", "Take a Poké Ball from my bag!"]);
+                    else if (npc.id === "prof" && profRescued) showDialogue(["Prof. Birch: You saved my life!", "Go to the town of Oldale and work on improving yourself."]);
+                    else if (npc.id === "bag" && !profRescued) {
+                        gameState = "MENU"; document.getElementById("starterSelection").style.display = "block";
+                    }
+                }
+            }
+        }
+    });
+
+    // POKEMON SEÇİMİ
+    window.chooseStarter = function(name, emoji) {
+        myPokemon = { name: name, emoji: emoji, hp: 20, maxHp: 20, lvl: 5 };
+        document.getElementById("starterSelection").style.display = "none";
+        startBattle("Poochyena", "🐺", 10, true); // Poochyena ile boss savaşı
+    };
+
+    // SAVAŞ BAŞLATMA
+    function startBattle(enemyName, enemyEmoji, enemyMaxHp, isStoryBattle) {
+        gameState = "BATTLE";
+        currentEnemy = { name: enemyName, emoji: enemyEmoji, hp: enemyMaxHp, maxHp: enemyMaxHp, isStory: isStoryBattle };
+        
+        document.getElementById("battleScreen").style.display = "flex";
+        document.getElementById("movesContainer").style.display = "grid";
+        document.getElementById("battleMsg").innerText = `Wild ${enemyName} has been released!`;
+        
+        // UI Güncelleme
+        document.getElementById("enemyName").innerText = enemyName;
+        document.getElementById("enemySprite").innerText = enemyEmoji;
+        document.getElementById("enemyHP").innerText = currentEnemy.hp;
+        
+        document.getElementById("myPokeName").innerText = myPokemon.name;
+        document.getElementById("playerSprite").innerText = myPokemon.emoji;
+        document.getElementById("myHP").innerText = myPokemon.hp;
+    }
+
+    // YETENEK KULLANIMI (Tackle / Growl)
+    window.useMove = function(moveName) {
+        document.getElementById("movesContainer").style.display = "none"; // Butonları gizle
+        
+        if (moveName === "Tackle") {
+            let damage = Math.floor(Math.random() * 3) + 3; // 3 ile 5 arası hasar
+            currentEnemy.hp -= damage;
+            document.getElementById("battleMsg").innerText = `${myPokemon.name} used TACKLE! (${damage} damage)`;
+        } else if (moveName === "Growl") {
+            document.getElementById("battleMsg").innerText = `${myPokemon.name} used GROWL! The enemy's attack was repelled!`;
+        }
+        
+        if (currentEnemy.hp < 0) currentEnemy.hp = 0;
+        document.getElementById("enemyHP").innerText = currentEnemy.hp;
+
+        setTimeout(() => {
+            if (currentEnemy.hp <= 0) {
+                winBattle();
+            } else {
+                enemyAttack(); // Düşman hayattaysa saldırır
+            }
+        }, 2000);
+    };
+
+    function enemyAttack() {
+        let eDamage = Math.floor(Math.random() * 3) + 2; // Düşman 2-4 arası vurur
+        myPokemon.hp -= eDamage;
+        if (myPokemon.hp < 0) myPokemon.hp = 0;
+        
+        document.getElementById("battleMsg").innerText = `${currentEnemy.name} used TACKLE! (${eDamage} damage)`;
+        document.getElementById("myHP").innerText = myPokemon.hp;
+
+        setTimeout(() => {
+            if (myPokemon.hp <= 0) {
+                loseBattle();
+            } else {
+                document.getElementById("battleMsg").innerText = "What are you going to do?";
+                document.getElementById("movesContainer").style.display = "grid"; // Sıra sende
+            }
+        }, 2000);
+    }
+
+    function winBattle() {
+        document.getElementById("battleMsg").innerText = `Enemy ${currentEnemy.name} has been defeated! You won!`;
+        setTimeout(() => {
+            document.getElementById("battleScreen").style.display = "none";
+            gameState = "PLAYING";
+            
+            if (currentEnemy.isStory) {
+                profRescued = true;
+                npcs = npcs.filter(n => n.id !== "dog" && n.id !== "bag"); // Köpeği ve çantayı sil
+                showDialogue(["Prof. Birch: You were amazing!", "You can now go to the town of Oldale above."]);
+            }
+        }, 2000);
+    }
+
+    function loseBattle() {
+        document.getElementById("battleMsg").innerText = `${myPokemon.name} fainted! You have no strength left to fight...`;
+        setTimeout(() => {
+            document.getElementById("battleScreen").style.display = "none";
+            gameState = "PLAYING";
+            // Eve ışınlan ve canı fulle (PokeCenter mantığı)
+            myPokemon.hp = myPokemon.maxHp;
+            currentMapId = 2; player.x = 3; player.y = 5; syncPixels();
+            showDialogue(["You’re awake. You’d better be a little more careful."]);
+        }, 3000);
+    }
+
+    // HAREKET VE HARİTA SİSTEMİ
+    window.addEventListener("keydown", (e) => {
+        if (gameState !== "PLAYING" || player.isMoving) return;
+        let tx = player.x, ty = player.y;
+        if (e.key === "w" || e.key === "ArrowUp") { ty--; player.facing = "up"; }
+        else if (e.key === "s" || e.key === "ArrowDown") { ty++; player.facing = "down"; }
+        else if (e.key === "a" || e.key === "ArrowLeft") { tx--; player.facing = "left"; }
+        else if (e.key === "d" || e.key === "ArrowRight") { tx++; player.facing = "right"; }
+        else return;
+
+        let isNpcHere = npcs.some(n => n.map === currentMapId && n.x === tx && n.y === ty);
+        
+        // PROGRESYON ENGELİ (Profesör kurtarılmadan Route 101 yukarısına çıkılamaz)
+        if (currentMapId === 3 && ty < 4 && !profRescued) {
+            showDialogue(["Someone is shouting over there! I need to go check what's going on."]);
+            return;
+        }
+
+        // HARİTA GEÇİŞLERİ
+        if (currentMapId === 2 && ty < 0) { currentMapId = 3; player.x = 5; player.y = 7; syncPixels(); return; } // Little -> Route101
+        if (currentMapId === 3 && ty > 7) { currentMapId = 2; player.x = 5; player.y = 0; syncPixels(); return; } // Route101 -> Little
+        if (currentMapId === 3 && ty < 0) { currentMapId = 4; player.x = 5; player.y = 6; syncPixels(); return; } // Route101 -> Oldale
+        if (currentMapId === 4 && ty > 6) { currentMapId = 3; player.x = 5; player.y = 0; syncPixels(); return; } // Oldale -> Route101
+
+        // DUVAR ÇARPIŞMALARI
+        let tile = maps[currentMapId][ty] ? maps[currentMapId][ty][tx] : 1;
+        if (tile !== 1 && tile !== 8 && tile !== 9 && tile !== 10 && tile !== 11 && tile !== 12 && !isNpcHere) {
+            player.x = tx; player.y = ty; player.isMoving = true;
+            
+            // VAHŞİ POKEMON ÇIKMA İHTİMALİ (Sadece uzun otlarda - tile 6)
+            if (tile === 6 && profRescued) {
+                if (Math.random() < 0.15) { // %15 İhtimal
+                    setTimeout(() => {
+                        startBattle("Zigzagoon", "🦝", 12, false);
+                    }, 200);
+                }
+            }
+        }
+    });
+
+    function syncPixels() { player.pixelX = player.x * TILE; player.pixelY = player.y * TILE; }
+
+    function gameLoop() {
+        if (gameState === "PLAYING") {
+            if (player.pixelX < player.x * TILE) player.pixelX += 5;
+            if (player.pixelX > player.x * TILE) player.pixelX -= 5;
+            if (player.pixelY < player.y * TILE) player.pixelY += 5;
+            if (player.pixelY > player.y * TILE) player.pixelY -= 5;
+            if (player.pixelX === player.x*TILE && player.pixelY === player.y*TILE) player.isMoving = false;
+        }
+
+        let camX = player.pixelX - (canvas.width / 2) + (TILE / 2);
+        let camY = player.pixelY - (canvas.height / 2) + (TILE / 2);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save(); ctx.translate(-camX, -camY);
+
+        let cMap = maps[currentMapId];
+        for (let row = 0; row < cMap.length; row++) {
+            for (let col = 0; col < cMap[row].length; col++) {
+                let tile = cMap[row][col];
+                let px = col * TILE, py = row * TILE;
+                
+                if (tile === 0) ctx.fillStyle = "#ecf0f1"; 
+                if (tile === 1) ctx.fillStyle = "#227038"; // Ağaç
+                if (tile === 4) ctx.fillStyle = "#34495e"; // Kapı
+                if (tile === 5) ctx.fillStyle = "#2ecc71"; // Çimen
+                if (tile === 6) ctx.fillStyle = "#27ae60"; // Uzun Ot
+                if (tile === 7) ctx.fillStyle = "#e67e22"; // Toprak Yol
+                if (tile === 8) ctx.fillStyle = "#f39c12"; // Ahşap Duvar
+                if (tile === 9) ctx.fillStyle = "#c0392b"; // Kırmızı Çatı (Ev)
+                if (tile === 10) ctx.fillStyle = "#e74c3c"; // PokeCenter Çatı
+                if (tile === 11) ctx.fillStyle = "#3498db"; // PokeMart Çatı
+                if (tile === 12) ctx.fillStyle = "#ecf0f1"; // Beyaz Duvar
+                
+                ctx.fillRect(px, py, TILE, TILE);
+                ctx.strokeStyle = "rgba(0,0,0,0.05)"; ctx.strokeRect(px, py, TILE, TILE);
+                
+                if (tile === 6) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(px+10, py+10, 5, 10); } // Ot efekti
+            }
+        }
+
+        npcs.forEach(npc => {
+            if (npc.map === currentMapId) {
+                if (npc.id === "bag") { ctx.fillStyle = npc.color; ctx.fillRect(npc.x*TILE+10, npc.y*TILE+15, TILE-20, TILE-20); } 
+                else { ctx.fillStyle = npc.color; ctx.beginPath(); ctx.arc(npc.x*TILE+TILE/2, npc.y*TILE+TILE/2, TILE/3, 0, Math.PI*2); ctx.fill(); }
+            }
+        });
+
+        // OYUNCU ÇİZİMİ
+        let px = player.pixelX, py = player.pixelY;
+        ctx.fillStyle = "#2980b9"; ctx.fillRect(px + 10, py + 20, TILE - 20, TILE - 20); 
+        ctx.fillStyle = "#f1c40f"; ctx.beginPath(); ctx.arc(px + TILE/2, py + 15, 12, 0, Math.PI * 2); ctx.fill(); 
+        
+        ctx.fillStyle = "black";
+        if (player.facing === "down") {
+            ctx.fillRect(px+TILE/2-5, py+12, 3, 3); ctx.fillRect(px+TILE/2+2, py+12, 3, 3);
+            ctx.fillStyle = "#e74c3c"; ctx.fillRect(px+TILE/2-12, py+2, 24, 8); 
+        } else if (player.facing === "up") {
+            ctx.fillStyle = "#e74c3c"; ctx.fillRect(px+TILE/2-10, py+4, 20, 10);
+        } else if (player.facing === "left") {
+            ctx.fillRect(px+TILE/2-8, py+12, 3, 3); ctx.fillStyle = "#e74c3c"; ctx.fillRect(px+TILE/2-14, py+4, 16, 8);
+        } else if (player.facing === "right") {
+            ctx.fillRect(px+TILE/2+5, py+12, 3, 3); ctx.fillStyle = "#e74c3c"; ctx.fillRect(px+TILE/2-2, py+4, 16, 8);
+        }
+
+        ctx.restore(); requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+</script>
+</body>
+</html>

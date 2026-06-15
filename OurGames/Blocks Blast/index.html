@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Blast 2.0</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@800&display=swap');
+
+        :root {
+            --bg: #4c66b2;
+            --panel: #1a233a;
+            --cell: #252f52;
+            --grid-border: #323f63;
+        }
+
+        body {
+            background-color: var(--bg);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #score-container { text-align: center; color: white; margin-bottom: 10px; }
+        #score { font-size: 64px; margin: 0; text-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        #level-info { color: #ffca28; font-size: 24px; display: flex; align-items: center; gap: 8px; justify-content: center; }
+
+        .game-area {
+            background: var(--panel);
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            border: 5px solid var(--grid-border);
+            position: relative;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, 44px);
+            grid-template-rows: repeat(8, 44px);
+            gap: 4px;
+        }
+
+        .cell {
+            width: 44px;
+            height: 44px;
+            background: var(--cell);
+            border-radius: 6px;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-4px, 2px); }
+            50% { transform: translate(4px, -2px); }
+            75% { transform: translate(-2px, -2px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+
+        .blast-effect {
+            transform: scale(0);
+            background: #fff !important;
+            filter: brightness(2);
+            transition: all 0.3s ease-out;
+        }
+
+        .filled {
+            box-shadow: inset 4px 4px 0 rgba(255,255,255,0.3), inset -4px -4px 0 rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        .c-cyan { background: #00d2ff; }
+        .c-purple { background: #9c27b0; }
+        .c-pink { background: #e91e63; }
+        .c-orange { background: #ff9800; }
+        .c-blue { background: #3f51b5; }
+        .c-gold { background: radial-gradient(circle, #fff, #ffd700, #ff8c00); box-shadow: 0 0 20px #ffd700; border: 2px solid white; }
+
+        #dock {
+            margin-top: 30px;
+            display: flex;
+            gap: 20px;
+            height: 120px;
+            align-items: center;
+        }
+
+        .piece { display: grid; gap: 3px; cursor: pointer; }
+        .p-cell { width: 18px; height: 18px; border-radius: 3px; }
+        .dragging { position: fixed; pointer-events: none; z-index: 1000; transform: scale(1.8); opacity: 0.9; }
+
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 5000;
+            color: white;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        #overlay button {
+            background: #ffca28;
+            border: none;
+            padding: 15px 45px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 25px;
+            color: #1a233a;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .preview-active { background: rgba(255, 255, 255, 0.3) !important; }
+    </style>
+</head>
+<body>
+
+    <div id="score-container">
+        <div id="level-info">👑 <span id="level-val">0</span></div>
+        <h1 id="score">0</h1>
+    </div>
+
+    <div class="game-area" id="game-area">
+        <div id="grid"></div>
+        <div id="overlay">
+            <h1 style="font-size: 48px; margin: 0; color: #ff4444;">Oh no!</h1>
+            <p id="final-score" style="font-size: 20px;">Score: 0</p>
+            <button onclick="resetGame()">START OVER</button>
+        </div>
+    </div>
+
+    <div id="dock"></div>
+
+    <script>
+        const gridEl = document.getElementById('grid');
+        const dockEl = document.getElementById('dock');
+        const scoreEl = document.getElementById('score');
+        const levelEl = document.getElementById('level-val');
+        const overlay = document.getElementById('overlay');
+        const gameArea = document.getElementById('game-area');
+
+        let score = 0, level = 0, lastSpecialAt = 0;
+        let board = Array(8).fill().map(() => Array(8).fill(null));
+        let activePiece = null, activeData = null;
+
+        const SHAPES = [
+            { color: 'c-cyan', data: [[1,1,1]] },
+            { color: 'c-cyan', data: [[1],[1],[1]] },
+            { color: 'c-purple', data: [[1,1],[1,1]] },
+            { color: 'c-pink', data: [[1,1,1,1]] },
+            { color: 'c-pink', data: [[1],[1],[1],[1]] },
+            { color: 'c-orange', data: [[1,0],[1,0],[1,1]] },
+            { color: 'c-blue', data: [[0,1,0],[1,1,1]] },
+            { color: 'c-purple', data: [[1]] },
+            { color: 'c-orange', data: [[1,1,1],[1,0,0]] },
+            { color: 'c-blue', data: [[1],[1]] }
+        ];
+
+        const SUPER_BLAST = { color: 'c-gold', data: [[1,1],[1,1]], special: true };
+
+        function init() {
+            renderBoard();
+            spawnPieces();
+        }
+
+        function renderBoard() {
+            gridEl.innerHTML = '';
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (board[r][c]) cell.classList.add('filled', board[r][c]);
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function spawnPieces() {
+            dockEl.innerHTML = '';
+            let count = 3;
+            
+            // 5 TAÇ KONTROLÜ (Level 5, 10, 15...)
+            if (level > 0 && level % 5 === 0 && level !== lastSpecialAt) {
+                dockEl.appendChild(createPieceEl(SUPER_BLAST));
+                lastSpecialAt = level;
+                count = 2;
+            }
+
+            for (let i = 0; i < count; i++) {
+                const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+                dockEl.appendChild(createPieceEl(shape));
+            }
+            checkGameOver();
+        }
+
+        function createPieceEl(shape) {
+            const div = document.createElement('div');
+            div.className = 'piece';
+            div.dataset.shape = JSON.stringify(shape);
+            div.style.gridTemplateColumns = `repeat(${shape.data[0].length}, 18px)`;
+            
+            shape.data.forEach(row => {
+                row.forEach(val => {
+                    const c = document.createElement('div');
+                    c.className = val ? `p-cell filled ${shape.color}` : 'p-cell';
+                    if(!val) c.style.background = 'transparent';
+                    div.appendChild(c);
+                });
+            });
+
+            const startDrag = (x, y) => {
+                activePiece = div.cloneNode(true);
+                activePiece.classList.add('dragging');
+                document.body.appendChild(activePiece);
+                activeData = shape;
+                div.style.visibility = 'hidden';
+                moveAt(x, y);
+            };
+
+            div.onmousedown = (e) => startDrag(e.clientX, e.clientY);
+            div.ontouchstart = (e) => {
+                const t = e.touches[0];
+                startDrag(t.clientX, t.clientY);
+            };
+            return div;
+        }
+
+        const moveAt = (x, y) => {
+            if (!activePiece) return;
+            activePiece.style.left = (x - activePiece.offsetWidth / 2) + 'px';
+            activePiece.style.top = (y - activePiece.offsetHeight / 2) + 'px';
+            updatePreview(x, y);
+        };
+
+        function updatePreview(clientX, clientY) {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('preview-active'));
+            const pos = getTargetCoords(clientX, clientY);
+            if (pos && canPlace(activeData.data, pos.r, pos.c)) {
+                showPreview(activeData.data, pos.r, pos.c);
+            }
+        }
+
+        function getTargetCoords(clientX, clientY) {
+            const rect = gridEl.getBoundingClientRect();
+            const cellSize = 48;
+            const x = clientX - rect.left - (activeData.data[0].length * cellSize / 2);
+            const y = clientY - rect.top - (activeData.data.length * cellSize / 2);
+            return { r: Math.round(y / cellSize), c: Math.round(x / cellSize) };
+        }
+
+        function showPreview(data, r, c) {
+            const cells = gridEl.children;
+            data.forEach((row, i) => {
+                row.forEach((val, j) => {
+                    if (val) {
+                        const tr = r + i, tc = c + j;
+                        if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8) cells[tr * 8 + tc].classList.add('preview-active');
+                    }
+                });
+            });
+        }
+
+        const endDrag = (clientX, clientY) => {
+            if (!activePiece) return;
+            const pos = getTargetCoords(clientX, clientY);
+
+            if (pos && canPlace(activeData.data, pos.r, pos.c)) {
+                if (activeData.special) {
+                    triggerBlast();
+                } else {
+                    place(activeData, pos.r, pos.c);
+                    checkAndClear();
+                }
+                const hidden = document.querySelector('.piece[style*="hidden"]');
+                if (hidden) hidden.remove();
+                
+                renderBoard();
+                if (dockEl.children.length === 0) spawnPieces();
+                else checkGameOver();
+            } else {
+                const orig = document.querySelector('.piece[style*="hidden"]');
+                if (orig) orig.style.visibility = 'visible';
+            }
+
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('preview-active'));
+            activePiece.remove();
+            activePiece = null;
+        };
+
+        window.onmousemove = (e) => moveAt(e.clientX, e.clientY);
+        window.ontouchmove = (e) => {
+            const t = e.touches[0];
+            moveAt(t.clientX, t.clientY);
+        };
+        window.onmouseup = (e) => endDrag(e.clientX, e.clientY);
+        window.ontouchend = (e) => {
+            const t = e.changedTouches[0];
+            endDrag(t.clientX, t.clientY);
+        };
+
+        function canPlace(data, r, c) {
+            return data.every((row, i) => 
+                row.every((val, j) => {
+                    if (!val) return true;
+                    const nr = r + i, nc = c + j;
+                    return nr >= 0 && nr < 8 && nc >= 0 && nc < 8 && !board[nr][nc];
+                })
+            );
+        }
+
+        function place(shape, r, c) {
+            shape.data.forEach((row, i) => {
+                row.forEach((val, j) => {
+                    if (val) board[r+i][c+j] = shape.color;
+                });
+            });
+            score += 10;
+            updateStats();
+        }
+
+        function updateStats() {
+            scoreEl.innerText = score;
+            level = Math.floor(score / 500);
+            levelEl.innerText = level;
+        }
+
+        function triggerBlast() {
+            gameArea.classList.add('shake');
+            document.querySelectorAll('.cell').forEach(c => c.classList.add('blast-effect'));
+            setTimeout(() => {
+                board = Array(8).fill().map(() => Array(8).fill(null));
+                score += 500;
+                updateStats();
+                gameArea.classList.remove('shake');
+                renderBoard();
+                if (dockEl.children.length === 0) spawnPieces();
+            }, 300);
+        }
+
+        function checkAndClear() {
+            let rowsToClear = [], colsToClear = [];
+            for(let i=0; i<8; i++){
+                if(board[i].every(v => v)) rowsToClear.push(i);
+                let colFull = true;
+                for(let r=0; r<8; r++) if(!board[r][i]) colFull = false;
+                if(colFull) colsToClear.push(i);
+            }
+            
+            if(rowsToClear.length || colsToClear.length) {
+                gameArea.classList.add('shake');
+                setTimeout(() => gameArea.classList.remove('shake'), 300);
+                
+                const cells = gridEl.children;
+                rowsToClear.forEach(r => {
+                    for(let i=0; i<8; i++) cells[r*8+i].classList.add('blast-effect');
+                    board[r] = Array(8).fill(null);
+                });
+                colsToClear.forEach(c => {
+                    for(let i=0; i<8; i++) cells[i*8+c].classList.add('blast-effect');
+                    board.forEach(row => row[c] = null);
+                });
+                score += (rowsToClear.length + colsToClear.length) * 100;
+                updateStats();
+            }
+        }
+
+        function checkGameOver() {
+            const currentPieces = Array.from(dockEl.children);
+            if (currentPieces.length === 0) return;
+
+            const hasMove = currentPieces.some(p => {
+                const shape = JSON.parse(p.dataset.shape);
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        if (canPlace(shape.data, r, c)) return true;
+                    }
+                }
+                return false;
+            });
+
+            if (!hasMove) {
+                document.getElementById('final-score').innerText = "Total Score: " + score;
+                overlay.style.display = 'flex';
+            }
+        }
+
+        function resetGame() {
+            score = 0; level = 0; lastSpecialAt = 0;
+            board = Array(8).fill().map(() => Array(8).fill(null));
+            scoreEl.innerText = "0"; levelEl.innerText = "0";
+            overlay.style.display = 'none';
+            renderBoard();
+            spawnPieces();
+        }
+
+        init();
+    </script>
+</body>
+</html>

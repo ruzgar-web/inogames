@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Plumber - 40 Levels & Bullet Chain Edition</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; background-color: #0c1020; 
+            display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; height: 100vh; color: white; 
+            font-family: sans-serif; overflow: hidden; 
+        }
+        canvas { 
+            background: linear-gradient(to bottom, #0f1c3f, #1b325f); 
+            border: 4px solid #34495e; border-radius: 12px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8); 
+            image-rendering: pixelated;
+        }
+        #ui { display: flex; width: 900px; justify-content: space-between; margin-bottom: 8px; }
+        .info { font-size: 1.5rem; font-weight: bold; font-family: monospace; text-shadow: 2px 2px #000; }
+        p { color: #bdc3c7; font-size: 1rem; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="levelText" class="info" style="color: #e74c3c;">LEVEL 1</div>
+        <div id="scoreText" class="info" style="color: #f1c40f;">STATUS: GAME STARTED</div>
+    </div>
+    <canvas id="gameCanvas" width="900" height="500"></canvas>
+    <p>🎮 Arrow Keys: Move / Jump | Jump on top of Bullet Bills to get a boost and reach the top of the Mega Turret!</p>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelTextUI = document.getElementById('levelText');
+    const scoreTextUI = document.getElementById('scoreText');
+
+    let currentLevel = 1;
+    let isDead = false;
+    let frameCount = 0; 
+
+    // Mario Speed and Physics (x2 Speed)
+    const player = {
+        x: 60, y: 350, width: 32, height: 48,
+        speed: 6.0, dx: 0, dy: 0, gravity: 0.23, jumpPower: -9.5, grounded: false
+    };
+
+    const keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false };
+
+    let platforms = [], enemies = [], piranhas = [], particles = [], lasers = [], turrets = [], boss = null, warnings = []; 
+
+    function spawnParticles(x, y, color, count = 15, explosive = false) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x, y: y,
+                dx: (Math.random() - 0.5) * (explosive ? 9 : 4),
+                dy: (Math.random() - 0.5) * (explosive ? 9 : 4) - (explosive ? 2 : 0),
+                radius: Math.random() * 4 + 1.5, color: color, alpha: 1, decay: Math.random() * 0.02 + 0.015
+            });
+        }
+    }
+
+    function createGoomba(x, y, range = 100) {
+        return { type: 'goomba', x: x, y: y, width: 34, height: 32, startX: x, range: range, dx: 1.5, isSquished: false, squishTimer: 0 };
+    }
+
+    function createBomb(x, y, minX, maxX) {
+        return { type: 'bomb', x: x, y: y, width: 30, height: 30, dx: 1.0, isActive: false, minX: minX, maxX: maxX };
+    }
+
+    function createPiranha(x, baseY) {
+        return { x: x, baseY: baseY, y: baseY, width: 36, height: 50, frameOffset: Math.floor(Math.random() * 200), isOut: false };
+    }
+
+    // Bullet Bill
+    function createBulletBill(x, y, dir) {
+        return { type: 'bullet', x: x, y: y, width: 36, height: 26, dx: dir * 3.5, isFalling: false };
+    }
+
+    function loadLevel(levelNum) {
+        isDead = false; player.dx = 0; player.dy = 0; player.x = 60; player.y = 350;
+        lasers = []; boss = null; enemies = []; piranhas = []; turrets = []; warnings = [];
+        levelTextUI.innerText = "LEVEL " + levelNum;
+        scoreTextUI.innerText = "STATUS: FULL HEALTH";
+
+        // Levels 1-20
+        if (levelNum === 1) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' }, { x: 300, y: 360, width: 120, height: 20, type: 'block' } ]; }
+        else if (levelNum === 2) { platforms = [ { x: 0, y: 460, width: 300, height: 40, type: 'ground' }, { x: 380, y: 370, width: 100, height: 20, type: 'block' }, { x: 560, y: 460, width: 340, height: 40, type: 'ground' } ]; }
+        else if (levelNum === 3) { platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 280, y: 370, width: 80, height: 20, type: 'block' }, { x: 420, y: 290, width: 80, height: 20, type: 'block' }, { x: 580, y: 460, width: 320, height: 40, type: 'ground' } ]; enemies = [createGoomba(650, 420, 100)]; }
+        else if (levelNum === 4) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 230, y: 360, width: 100, height: 20, type: 'block' }, { x: 400, y: 280, width: 100, height: 20, type: 'block' }, { x: 570, y: 360, width: 100, height: 20, type: 'block' }, { x: 740, y: 460, width: 160, height: 40, type: 'ground' } ]; }
+        else if (levelNum === 5) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 230, y: 380, width: 70, height: 20, type: 'block' }, { x: 360, y: 310, width: 70, height: 20, type: 'block' }, { x: 490, y: 250, width: 70, height: 20, type: 'block' }, { x: 620, y: 270, width: 80, height: 20, type: 'block' }, { x: 760, y: 360, width: 140, height: 140, type: 'ground' } ]; enemies = [createGoomba(230, 340, 40)]; }
+        else if (levelNum === 6) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' }, { x: 250, y: 340, width: 400, height: 20, type: 'block' } ]; enemies = [createGoomba(300, 300, 150), createGoomba(500, 420, 200)]; }
+        else if (levelNum === 7) { platforms = [ { x: 0, y: 460, width: 220, height: 40, type: 'ground' }, { x: 320, y: 360, width: 70, height: canvas.height - 360, type: 'pipe' }, { x: 520, y: 340, width: 70, height: canvas.height - 340, type: 'pipe' }, { x: 720, y: 460, width: 180, height: 40, type: 'ground' } ]; }
+        else if (levelNum === 8) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 260, y: 360, width: 80, height: canvas.height - 360, type: 'pipe' }, { x: 460, y: 290, width: 80, height: canvas.height - 290, type: 'pipe' }, { x: 680, y: 460, width: 220, height: 40, type: 'ground' } ]; enemies = [createGoomba(700, 420, 100)]; }
+        else if (levelNum === 9) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' }, { x: 200, y: 330, width: 500, height: 20, type: 'block' } ]; enemies = [createGoomba(300, 420, 100), createGoomba(600, 420, 100), createGoomba(250, 290, 100), createGoomba(500, 290, 100)]; }
+        else if (levelNum === 10) {
+            levelTextUI.innerText = "⚡ LEVEL 10: ROBOT BOSS ⚡";
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            boss = { type: 'robot', x: 390, y: -100, width: 120, height: 130, hp: 3, maxHp: 3, state: 'intro', stateTimer: 45, attackPhase: 0, slamCount: 0, invulnTimer: 0 };
+        }
+        else if (levelNum === 11) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 220, y: 390, width: 60, height: 20, type: 'block' }, { x: 340, y: 330, width: 60, height: 20, type: 'block' }, { x: 460, y: 270, width: 60, height: 20, type: 'block' }, { x: 590, y: 460, width: 310, height: 40, type: 'ground' } ]; enemies = [createGoomba(620, 420, 150)]; }
+        else if (levelNum === 12) { platforms = [ { x: 0, y: 460, width: 220, height: 40, type: 'ground' }, { x: 300, y: 360, width: 70, height: canvas.height - 360, type: 'pipe' }, { x: 490, y: 360, width: 70, height: canvas.height - 360, type: 'pipe' }, { x: 680, y: 460, width: 220, height: 40, type: 'ground' } ]; piranhas = [createPiranha(317, 360), createPiranha(507, 360)]; }
+        else if (levelNum === 13) { platforms = [ { x: 0, y: 460, width: 120, height: 40, type: 'ground' }, { x: 200, y: 370, width: 80, height: 20, type: 'block' }, { x: 350, y: 370, width: 80, height: 20, type: 'block' }, { x: 500, y: 370, width: 80, height: 20, type: 'block' }, { x: 650, y: 370, width: 80, height: 20, type: 'block' }, { x: 780, y: 460, width: 120, height: 40, type: 'ground' } ]; }
+        else if (levelNum === 14) { platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 280, y: 340, width: 60, height: canvas.height - 340, type: 'pipe' }, { x: 440, y: 460, width: 160, height: 40, type: 'ground' }, { x: 680, y: 330, width: 60, height: canvas.height - 330, type: 'pipe' }, { x: 800, y: 460, width: 100, height: 40, type: 'ground' } ]; enemies = [createGoomba(450, 420, 100)]; piranhas = [createPiranha(692, 330)]; }
+        else if (levelNum === 15) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' }, { x: 300, y: 360, width: 300, height: 20, type: 'block' }, { x: 350, y: 280, width: 200, height: 20, type: 'block' } ]; enemies = [createGoomba(360, 240, 100), createGoomba(100, 420, 150), createGoomba(650, 420, 150)]; }
+        else if (levelNum === 16) { platforms = [ { x: 0, y: 460, width: 100, height: 40, type: 'ground' }, { x: 200, y: 360, width: 70, height: canvas.height - 360, type: 'pipe' }, { x: 390, y: 300, width: 70, height: canvas.height - 300, type: 'pipe' }, { x: 580, y: 360, width: 70, height: canvas.height - 360, type: 'pipe' }, { x: 760, y: 460, width: 140, height: 40, type: 'ground' } ]; piranhas = [createPiranha(217, 360), createPiranha(407, 300), createPiranha(597, 360)]; }
+        else if (levelNum === 17) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 200, y: 270, width: 500, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ]; enemies = [createGoomba(250, 230, 400)]; }
+        else if (levelNum === 18) { platforms = [ { x: 0, y: 460, width: 180, height: 40, type: 'ground' }, { x: 240, y: 390, width: 80, height: 20, type: 'block' }, { x: 120, y: 300, width: 80, height: 20, type: 'block' }, { x: 300, y: 220, width: 80, height: 20, type: 'block' }, { x: 500, y: 160, width: 80, height: 20, type: 'block' }, { x: 660, y: 350, width: 70, height: canvas.height - 350, type: 'pipe' }, { x: 790, y: 460, width: 110, height: 40, type: 'ground' } ]; piranhas = [createPiranha(677, 350)]; }
+        else if (levelNum === 19) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ]; enemies = [createGoomba(300, 420, 40), createGoomba(400, 420, 40), createGoomba(500, 420, 40), createGoomba(600, 420, 40)]; }
+        else if (levelNum === 20) {
+            levelTextUI.innerText = "⚡ LEVEL 20: DRILL BOSS ⚡";
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            boss = { type: 'drill', x: 50, y: 360, width: 80, height: 100, hp: 3, maxHp: 3, state: 'intro', stateTimer: 60, thrustsLeft: 0, currentThrust: 0, thrustDuration: 60, targetX: 0, facing: 1, invulnTimer: 0 };
+        }
+        // 21-30: BOMBS
+        else if (levelNum === 21) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ]; enemies = [createBomb(600, 430, 0, 900)]; }
+        else if (levelNum === 22) { platforms = [ { x: 0, y: 460, width: 250, height: 40, type: 'ground' }, { x: 350, y: 360, width: 200, height: 20, type: 'block' }, { x: 650, y: 460, width: 250, height: 40, type: 'ground' } ]; enemies = [createBomb(400, 330, 350, 550)]; }
+        else if (levelNum === 23) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' }, { x: 400, y: 300, width: 100, height: 20, type: 'block' } ]; enemies = [createBomb(700, 430, 0, 900), createGoomba(410, 260, 80)]; }
+        else if (levelNum === 24) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 250, y: 360, width: 80, height: canvas.height - 360, type: 'pipe' }, { x: 450, y: 280, width: 80, height: canvas.height - 280, type: 'pipe' }, { x: 650, y: 460, width: 250, height: 40, type: 'ground' } ]; piranhas = [createPiranha(267, 360)]; enemies = [createBomb(750, 430, 650, 900)]; }
+        else if (levelNum === 25) { platforms = [ { x: 0, y: 460, width: 250, height: 40, type: 'ground' }, { x: 350, y: 380, width: 150, height: 20, type: 'block' }, { x: 550, y: 320, width: 150, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ]; enemies = [createBomb(370, 350, 350, 500)]; }
+        else if (levelNum === 26) { platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 300, y: 360, width: 60, height: 20, type: 'block' }, { x: 450, y: 280, width: 60, height: 20, type: 'block' }, { x: 600, y: 360, width: 60, height: 20, type: 'block' }, { x: 700, y: 460, width: 200, height: 40, type: 'ground' } ]; enemies = [createGoomba(450, 240, 50), createBomb(800, 430, 700, 900)]; }
+        else if (levelNum === 27) { platforms = [ { x: 0, y: 460, width: 300, height: 40, type: 'ground' }, { x: 400, y: 380, width: 100, height: 20, type: 'block' }, { x: 550, y: 300, width: 100, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ]; enemies = [createBomb(570, 270, 550, 650)]; }
+        else if (levelNum === 28) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ]; piranhas = [createPiranha(300, 460), createPiranha(600, 460)]; enemies = [createBomb(450, 430, 0, 900), createGoomba(750, 420, 100)]; }
+        else if (levelNum === 29) { platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 250, y: 380, width: 400, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ]; enemies = [createBomb(300, 350, 250, 650)]; }
+        else if (levelNum === 30) {
+            levelTextUI.innerText = "💥 LEVEL 30: BOMB KING 💥";
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            boss = { type: 'bombKing', x: 600, y: 300, width: 100, height: 100, hp: 4, maxHp: 4, state: 'idle', stateTimer: 60, invulnTimer: 0 };
+        }
+        // 31-40: TURRETS AND PLATFORMS
+        else if (levelNum === 31) { platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ]; enemies = [createGoomba(400, 420, 200)]; }
+        else if (levelNum === 32) { 
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            turrets = [ { x: 800, y: 400, w: 40, h: 60, dir: -1, timer: 60, cooldown: 180 } ];
+        }
+        else if (levelNum === 33) { 
+            platforms = [ { x: 0, y: 460, width: 250, height: 40, type: 'ground' }, { x: 400, y: 360, width: 100, height: 20, type: 'block' }, { x: 650, y: 460, width: 250, height: 40, type: 'ground' } ]; 
+            turrets = [ { x: 800, y: 400, w: 40, h: 60, dir: -1, timer: 30, cooldown: 150 } ];
+            enemies = [createBomb(420, 330, 400, 500)];
+        }
+        else if (levelNum === 34) {
+            platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 300, y: 320, width: 50, height: canvas.height - 320, type: 'pipe' }, { x: 500, y: 460, width: 400, height: 40, type: 'ground' } ];
+            turrets = [ { x: 700, y: 400, w: 40, h: 60, dir: -1, timer: 50, cooldown: 140 } ];
+            piranhas = [createPiranha(307, 320)];
+        }
+        else if (levelNum === 35) {
+            platforms = [ { x: 0, y: 460, width: 150, height: 40, type: 'ground' }, { x: 300, y: 300, width: 300, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ];
+            turrets = [ { x: 800, y: 200, w: 40, h: canvas.height - 200, dir: -1, timer: 10, cooldown: 120 } ]; 
+        }
+        else if (levelNum === 36) {
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            turrets = [ { x: 50, y: 400, w: 40, h: 60, dir: 1, timer: 90, cooldown: 160 }, { x: 800, y: 400, w: 40, h: 60, dir: -1, timer: 10, cooldown: 160 } ];
+            enemies = [createBomb(450, 430, 300, 600)];
+        }
+        else if (levelNum === 37) {
+            platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 350, y: 380, width: 50, height: 20, type: 'block' }, { x: 550, y: 300, width: 50, height: 20, type: 'block' }, { x: 750, y: 460, width: 150, height: 40, type: 'ground' } ];
+            turrets = [ { x: 800, y: 300, w: 40, h: canvas.height - 300, dir: -1, timer: 40, cooldown: 130 } ]; 
+        }
+        else if (levelNum === 38) {
+            platforms = [ { x: 0, y: 460, width: 200, height: 40, type: 'ground' }, { x: 300, y: 380, width: 300, height: 20, type: 'block' }, { x: 700, y: 460, width: 200, height: 40, type: 'ground' } ];
+            turrets = [ { x: 400, y: 320, w: 40, h: 60, dir: -1, timer: 20, cooldown: 140 }, { x: 500, y: 320, w: 40, h: 60, dir: 1, timer: 90, cooldown: 140 } ];
+        }
+        else if (levelNum === 39) {
+            platforms = [ { x: 0, y: 460, width: 100, height: 40, type: 'ground' }, { x: 200, y: 390, width: 50, height: 20, type: 'block' }, { x: 350, y: 320, width: 50, height: 20, type: 'block' }, { x: 500, y: 280, width: 50, height: 20, type: 'block' }, { x: 800, y: 460, width: 100, height: 40, type: 'ground' } ];
+            turrets = [ { x: 800, y: 200, w: 40, h: canvas.height - 200, dir: -1, timer: 10, cooldown: 110 } ];
+        }
+        else if (levelNum === 40) {
+            levelTextUI.innerText = "☠️ LEVEL 40: MEGA TURRET BOSS ☠️";
+            platforms = [ { x: 0, y: 460, width: 900, height: 40, type: 'ground' } ];
+            boss = { type: 'cannonBoss', x: 700, y: 110, width: 120, height: 350, hp: 5, maxHp: 5, state: 'idle', stateTimer: 50, invulnTimer: 0 };
+        }
+    }
+
+    window.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+    window.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+    function triggerDeath() { if(isDead) return; isDead = true; player.dx = 0; player.dy = -6.5; }
+
+    function update() {
+        frameCount++;
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i]; p.x += p.dx; p.y += p.dy; p.alpha -= p.decay;
+            if (p.alpha <= 0) particles.splice(i, 1);
+        }
+
+        if (isDead) {
+            player.dy += player.gravity; player.y += player.dy;
+            if (player.y > canvas.height + 100) loadLevel(currentLevel);
+            return;
+        }
+
+        if (keys.ArrowRight) player.dx = player.speed;
+        else if (keys.ArrowLeft) player.dx = -player.speed;
+        else player.dx = 0;
+
+        if (keys.ArrowUp && player.grounded) { player.dy = player.jumpPower; player.grounded = false; }
+
+        player.dy += player.gravity; player.x += player.dx; player.y += player.dy;
+        if (player.x < 0) player.x = 0;
+        
+        if ((currentLevel % 10 === 0) && player.x >= canvas.width - player.width) player.x = canvas.width - player.width; 
+        else if (player.x >= canvas.width) { if (currentLevel < 40) { currentLevel++; loadLevel(currentLevel); } }
+
+        if (player.y > canvas.height + 10) triggerDeath();
+
+        player.grounded = false; 
+        for (const rect of platforms) {
+            if (player.x < rect.x + rect.width && player.x + player.width > rect.x && player.y < rect.y + rect.height && player.y + player.height > rect.y) {
+                // Grounding
+                if (player.dy > 0 && player.y + player.height - player.dy <= rect.y + 7) { player.grounded = true; player.dy = 0; player.y = rect.y - player.height; }
+                
+                // Solid Collision (Pipe Wall)
+                if (rect.type === 'pipe') {
+                    if (player.dx > 0 && player.x + player.width - player.dx <= rect.x) { player.x = rect.x - player.width; } 
+                    else if (player.dx < 0 && player.x - player.dx >= rect.x + rect.width) { player.x = rect.x + rect.width; }
+                    if (player.dy < 0 && player.y - player.dy >= rect.y + rect.height - 7) { player.dy = 0; player.y = rect.y + rect.height; }
+                }
+            }
+        }
+        
+        // Turret Solid Collision
+        for (const t of turrets) {
+            if (player.x < t.x + t.w && player.x + player.width > t.x && player.y < t.y + t.h && player.y + player.height > t.y) {
+                if (player.dy > 0 && player.y + player.height - player.dy <= t.y + 7) { player.grounded = true; player.dy = 0; player.y = t.y - player.height; }
+                else if (player.dx > 0) player.x = t.x - player.width;
+                else if (player.dx < 0) player.x = t.x + t.w;
+            }
+        }
+
+        for (let p of piranhas) {
+            let cycleTimer = (frameCount + p.frameOffset) % 600; p.isOut = false;
+            if (cycleTimer < 460) p.y = p.baseY;
+            else if (cycleTimer >= 460 && cycleTimer <= 480) { p.y = p.baseY - (p.height * ((cycleTimer - 460) / 20)); p.isOut = true; } 
+            else if (cycleTimer > 480 && cycleTimer < 580) { p.y = p.baseY - p.height; p.isOut = true; } 
+            else if (cycleTimer >= 580 && cycleTimer <= 600) { p.y = (p.baseY - p.height) + (p.height * ((cycleTimer - 580) / 20)); p.isOut = true; }
+            if (p.isOut && player.x < p.x + p.width - 4 && player.x + player.width > p.x + 4 && player.y < p.y + p.height && player.y + player.height > p.y) triggerDeath();
+        }
+
+        // Turret Fire Logic
+        for (const t of turrets) {
+            t.timer--;
+            if (t.timer <= 0) {
+                enemies.push(createBulletBill(t.x + (t.dir === 1 ? t.w : -36), t.y + 10, t.dir));
+                t.timer = t.cooldown;
+            }
+        }
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            let e = enemies[i];
+            
+            if (e.type === 'bullet') {
+                if (e.isFalling) { e.y += 5; if(e.y > canvas.height) enemies.splice(i, 1); continue; }
+                e.x += e.dx;
+                if (e.x > canvas.width + 100 || e.x < -100) { enemies.splice(i, 1); continue; }
+                
+                if (player.x < e.x + e.width && player.x + player.width > e.x && player.y < e.y + e.height && player.y + player.height > e.y) {
+                    if (player.dy > 0 && player.y + player.height - player.dy <= e.y + 12) { 
+                        player.dy = player.jumpPower * 1.1; // Jump boost
+                        player.grounded = false;
+                        e.isFalling = true; e.dx = 0;
+                        spawnParticles(e.x + 18, e.y + 10, '#bdc3c7', 10);
+                    } else triggerDeath();
+                }
+            }
+            else if (e.type === 'goomba') {
+                if (e.isSquished) { e.squishTimer--; if (e.squishTimer <= 0) enemies.splice(i, 1); continue; }
+                e.x += e.dx;
+                if (e.x > e.startX + e.range || e.x < e.startX || e.x + e.width > canvas.width || e.x < 0) e.dx *= -1;
+                if (player.x < e.x + e.width && player.x + player.width > e.x && player.y < e.y + e.height && player.y + player.height > e.y) {
+                    if (player.dy > 0 && player.y + player.height - player.dy <= e.y + 10) { 
+                        e.isSquished = true; e.squishTimer = 40; player.dy = -4.5; spawnParticles(e.x + 15, e.y + 15, '#c0392b', 8); 
+                    } else triggerDeath();
+                }
+            }
+            else if (e.type === 'bomb') {
+                let dist = Math.abs(player.x - e.x);
+                if (dist < 350) e.isActive = true; 
+                if (e.isActive) {
+                    e.dx = (player.x > e.x) ? 3.5 : -3.5; e.x += e.dx;
+                    if (e.x < e.minX) { e.x = e.minX; e.dx = 0; }
+                    if (e.x + e.width > e.maxX) { e.x = e.maxX - e.width; e.dx = 0; }
+                }
+                if (player.x < e.x + e.width && player.x + player.width > e.x && player.y < e.y + e.height && player.y + player.height > e.y) {
+                    spawnParticles(e.x + 15, e.y + 15, '#f39c12', 30, true);
+                    enemies.splice(i, 1); triggerDeath(); 
+                }
+            }
+        }
+
+        if (boss) {
+            if (boss.invulnTimer > 0) boss.invulnTimer--;
+
+            if (boss.type === 'robot') {
+                switch (boss.state) {
+                    case 'intro': boss.y += (40 - boss.y) * 0.08; boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'rise_high'; boss.stateTimer = 20; } break;
+                    case 'rise_high': boss.y += (30 - boss.y) * 0.16; boss.x += ((player.x - 40) - boss.x) * 0.06; boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'boss_attack_cycle'; boss.attackPhase = 1; boss.stateTimer = 5; } break;
+                    case 'boss_attack_cycle': boss.stateTimer--; if (boss.stateTimer <= 0) { if (boss.hp > 1) { if (boss.attackPhase === 1) { enemies.push(createBulletBill(boss.x - 36, boss.y + 50, -1)); boss.attackPhase = 2; boss.stateTimer = 40; } else if (boss.attackPhase === 2) { enemies.push(createBulletBill(boss.x - 36, boss.y + 20, -1)); enemies.push(createBulletBill(boss.x + boss.width, boss.y + 80, 1)); boss.attackPhase = 3; boss.stateTimer = 30; } else if (boss.attackPhase === 3) { boss.state = 'prepare_slam'; boss.slamCount = 1; boss.stateTimer = 20; } } else { boss.state = 'prepare_slam'; boss.slamCount = 2; boss.stateTimer = 25; } } break;
+                    case 'prepare_slam': boss.y += (20 - boss.y) * 0.2; boss.x += ((player.x - 40) - boss.x) * 0.16; boss.stateTimer--; if (boss.stateTimer <= 0) boss.state = 'slam_down'; break;
+                    case 'slam_down': boss.y += 11.0; if (boss.y >= 330) { boss.y = 330; spawnParticles(boss.x + boss.width/2, 450, '#95a5a6', 15); boss.slamCount--; if (boss.slamCount > 0) { boss.state = 'prepare_slam'; boss.stateTimer = 20; } else { boss.state = 'vulnerable'; boss.stateTimer = 120; } } break;
+                    case 'vulnerable': boss.x += Math.sin(Date.now() / 15) * 2; boss.stateTimer--; if (player.x < boss.x + boss.width && player.x + player.width > boss.x && player.y < boss.y + boss.height && player.y + player.height > boss.y) { if (player.dy > 0 && player.y + player.height - player.dy <= boss.y + 20 && boss.invulnTimer === 0) { boss.hp--; boss.invulnTimer = 40; player.dy = -6.0; spawnParticles(boss.x + boss.width/2, boss.y + boss.height/2, '#e74c3c', 25, true); if (boss.hp <= 0) { boss.state = 'dead'; boss.stateTimer = 100; } else { boss.state = 'rise_high'; boss.stateTimer = 20; } } else if (boss.invulnTimer === 0) triggerDeath(); } if (boss.stateTimer <= 0 && boss.state !== 'dead') { boss.state = 'rise_high'; boss.stateTimer = 15; } break;
+                    case 'dead': boss.stateTimer--; if (boss.stateTimer % 6 === 0) spawnParticles(boss.x + Math.random() * boss.width, boss.y + Math.random() * boss.height, '#f39c12', 15, true); if (boss.stateTimer <= 0) { currentLevel = 11; loadLevel(11); } break;
+                }
+            } 
+            else if (boss.type === 'drill') {
+                warnings = []; switch (boss.state) {
+                    case 'intro': boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'hide'; boss.stateTimer = 30; } break;
+                    case 'hide': boss.y += 12; if (boss.y > 600) { boss.y = 600; boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'warn'; boss.stateTimer = 30; boss.targetX = player.x; boss.thrustsLeft = 5 - boss.hp; boss.currentThrust = 0; } } break;
+                    case 'warn': warnings.push({x: boss.targetX, y: 440}); boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'thrust'; boss.currentThrust++; boss.thrustDuration = (boss.currentThrust === 2) ? 120 : 30; boss.stateTimer = boss.thrustDuration; boss.x = boss.targetX - boss.width/2; } break;
+                    case 'thrust': let progress = (boss.thrustDuration - boss.stateTimer) / boss.thrustDuration; boss.y = 500 - Math.sin(progress * Math.PI) * 220; if (player.x < boss.x + boss.width - 15 && player.x + player.width > boss.x + 15 && player.y < boss.y + boss.height && player.y + player.height > boss.y) triggerDeath(); boss.stateTimer--; if (boss.stateTimer <= 0) { boss.y = 600; boss.thrustsLeft--; if (boss.thrustsLeft > 0) { boss.state = 'wait_underground'; boss.stateTimer = 50; } else { boss.state = 'surface_prepare'; boss.stateTimer = 30; } } break;
+                    case 'wait_underground': boss.stateTimer--; if (boss.stateTimer <= 0) { boss.state = 'warn'; boss.stateTimer = 30; boss.targetX = player.x; } break;
+                    case 'surface_prepare': boss.x = (Math.random() > 0.5) ? 10 : canvas.width - boss.width - 10; boss.facing = (boss.x < canvas.width / 2) ? 1 : -1; boss.y -= 8; if (boss.y <= 360) { boss.y = 360; boss.stateTimer--; if (boss.stateTimer <= 0) boss.state = 'charge'; } break;
+                    case 'charge': boss.x += 14.0 * boss.facing; if (player.x < boss.x + boss.width - 10 && player.x + player.width > boss.x + 10 && player.y < boss.y + boss.height && player.y + player.height > boss.y) triggerDeath(); if (boss.x <= 0 || boss.x >= canvas.width - boss.width) { boss.x = Math.max(0, Math.min(boss.x, canvas.width - boss.width)); boss.state = 'stunned'; boss.stateTimer = 120; spawnParticles(boss.x + (boss.facing > 0 ? boss.width : 0), 400, '#bdc3c7', 20); } break;
+                    case 'stunned': boss.stateTimer--; if (player.x < boss.x + boss.width && player.x + player.width > boss.x && player.y < boss.y + boss.height && player.y + player.height > boss.y) { if (player.dy > 0 && player.y + player.height - player.dy <= boss.y + 25) { boss.hp--; player.dy = -6.5; spawnParticles(boss.x + boss.width/2, boss.y + 20, '#e74c3c', 30, true); if (boss.hp <= 0) { boss.state = 'dead'; boss.stateTimer = 120; } else { boss.state = 'hide'; boss.stateTimer = 20; } } else triggerDeath(); } if (boss.stateTimer <= 0 && boss.state !== 'dead') { boss.state = 'hide'; boss.stateTimer = 20; } break;
+                    case 'dead': boss.stateTimer--; if (boss.stateTimer % 5 === 0) spawnParticles(boss.x + Math.random() * boss.width, boss.y + Math.random() * boss.height, '#e74c3c', 15, true); if (boss.stateTimer <= 0) { currentLevel = 21; loadLevel(21); } break;
+                }
+            }
+            else if (boss.type === 'bombKing') {
+                switch(boss.state) {
+                    case 'idle': boss.stateTimer--; if(boss.stateTimer <= 0) { boss.state = 'jump'; boss.stateTimer = 60; boss.targetX = player.x; boss.dy = -12; } break;
+                    case 'jump': boss.dy += 0.4; boss.y += boss.dy; boss.x += (boss.targetX - boss.x) * 0.05; if(boss.y >= 360) { boss.y = 360; boss.dy = 0; spawnParticles(boss.x + 50, 460, '#7f8c8d', 20); boss.state = 'spawn'; boss.stateTimer = 40; } break;
+                    case 'spawn': boss.stateTimer--; if(boss.stateTimer === 20) { enemies.push(createBomb(boss.x + 35, boss.y + 80, boss.x-150, boss.x+250)); } if(boss.stateTimer <= 0) { boss.state = 'vulnerable'; boss.stateTimer = 90; } break;
+                    case 'vulnerable': boss.x += Math.sin(Date.now() / 30) * 3; boss.stateTimer--; if (player.x < boss.x + boss.width && player.x + player.width > boss.x && player.y < boss.y + boss.height && player.y + player.height > boss.y) { if (player.dy > 0 && player.y + player.height - player.dy <= boss.y + 30 && boss.invulnTimer === 0) { boss.hp--; boss.invulnTimer = 40; player.dy = -7.0; spawnParticles(boss.x + 50, boss.y + 50, '#e74c3c', 40, true); if (boss.hp <= 0) { boss.state = 'dead'; boss.stateTimer = 150; } else { boss.state = 'idle'; boss.stateTimer = 30; } } else if (boss.invulnTimer === 0) triggerDeath(); } if(boss.stateTimer <= 0 && boss.state !== 'dead') { boss.state = 'idle'; boss.stateTimer = 20; } break;
+                    case 'dead': boss.stateTimer--; if(boss.stateTimer % 4 === 0) spawnParticles(boss.x + Math.random()*100, boss.y + Math.random()*100, '#f1c40f', 20, true); if(boss.stateTimer <= 0) { currentLevel = 31; loadLevel(31); } break;
+                }
+            }
+            // LEVEL 40 BOSS: MEGA TURRET
+            else if (boss.type === 'cannonBoss') {
+                switch(boss.state) {
+                    case 'idle': boss.stateTimer--; if(boss.stateTimer <= 0) { boss.state = 'shoot_sequence'; boss.stateTimer = 180; boss.attackPhase = 0; } break;
+                    case 'shoot_sequence': 
+                        boss.stateTimer--;
+                        if (boss.stateTimer === 150 && boss.attackPhase === 0) { enemies.push(createBulletBill(boss.x - 36, boss.y + 240, -1)); boss.attackPhase = 1; } 
+                        if (boss.stateTimer === 100 && boss.attackPhase === 1) { enemies.push(createBulletBill(boss.x - 36, boss.y + 170, -1)); boss.attackPhase = 2; } 
+                        if (boss.stateTimer === 50 && boss.attackPhase === 2) { enemies.push(createBulletBill(boss.x - 36, boss.y + 100, -1)); boss.attackPhase = 3; } 
+                        
+                        if(boss.stateTimer <= 0) { boss.state = 'vulnerable'; boss.stateTimer = 120; } 
+                        break;
+                    case 'vulnerable': 
+                        boss.stateTimer--; 
+                        if (player.x < boss.x + boss.width && player.x + player.width > boss.x && player.y < boss.y + 30 && player.y + player.height > boss.y) {
+                            if (player.dy > 0 && player.y + player.height - player.dy <= boss.y + 20 && boss.invulnTimer === 0) {
+                                boss.hp--; boss.invulnTimer = 40; player.dy = -8.0; spawnParticles(boss.x + 60, boss.y + 20, '#e74c3c', 40, true);
+                                if (boss.hp <= 0) { boss.state = 'dead'; boss.stateTimer = 150; } else { boss.state = 'idle'; boss.stateTimer = 30; }
+                            }
+                        } else if (player.x < boss.x + boss.width && player.x + player.width > boss.x && player.y < boss.y + boss.height && player.y + player.height > boss.y) {
+                            if(boss.invulnTimer === 0) triggerDeath(); 
+                        }
+                        if(boss.stateTimer <= 0 && boss.state !== 'dead') { boss.state = 'idle'; boss.stateTimer = 20; } 
+                        break;
+                    case 'dead': 
+                        boss.stateTimer--; if(boss.stateTimer % 4 === 0) spawnParticles(boss.x + Math.random()*120, boss.y + Math.random()*300, '#e74c3c', 20, true);
+                        if(boss.stateTimer <= 0) { alert("CONGRATULATIONS! YOU WIN! 🏆"); currentLevel = 1; loadLevel(1); } 
+                        break;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let p of piranhas) {
+            if (p.y >= p.baseY) continue; let drawY = p.y;
+            ctx.fillStyle = '#27ae60'; ctx.fillRect(p.x + 14, drawY + 20, 8, p.baseY - drawY);
+            ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.ellipse(p.x + 6, drawY + 35, 10, 5, Math.PI/4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(p.x + 30, drawY + 35, 10, 5, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+            let mouthOpen = 0; let cycleTimer = (frameCount + p.frameOffset) % 600; if (cycleTimer > 480 && cycleTimer < 580) { mouthOpen = Math.abs(Math.sin(frameCount * 0.08)) * 12; }
+            ctx.fillStyle = '#e74c3c'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x + 18, drawY + 15, 16, Math.PI + (mouthOpen*0.04), 0 - (mouthOpen*0.04)); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(p.x + 18, drawY + 15, 16, 0 + (mouthOpen*0.04), Math.PI - (mouthOpen*0.04)); ctx.fill(); ctx.stroke();
+        }
+
+        for (const rect of platforms) {
+            if (rect.type === 'ground') { ctx.fillStyle = '#2d1a10'; ctx.fillRect(rect.x, rect.y, rect.width, rect.height); ctx.fillStyle = '#1e8449'; ctx.fillRect(rect.x, rect.y, rect.width, 12); } 
+            else if (rect.type === 'block') { ctx.fillStyle = '#964b00'; ctx.fillRect(rect.x, rect.y, rect.width, rect.height); ctx.strokeStyle = '#5c2d00'; ctx.lineWidth = 3; ctx.strokeRect(rect.x, rect.y, rect.width, rect.height); } 
+            else if (rect.type === 'pipe') {
+                let pipeGrad = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.width, rect.y); pipeGrad.addColorStop(0, '#0f6226'); pipeGrad.addColorStop(0.3, '#2ecc71'); pipeGrad.addColorStop(1, '#0b4a1b'); ctx.fillStyle = pipeGrad; 
+                ctx.fillRect(rect.x, rect.y + 15, rect.width, rect.height - 15); ctx.fillRect(rect.x - 4, rect.y, rect.width + 8, 15); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeRect(rect.x - 4, rect.y, rect.width + 8, 15); ctx.strokeRect(rect.x, rect.y + 15, rect.width, rect.height - 15);
+            }
+        }
+
+        for (const t of turrets) { ctx.fillStyle = '#2c3e50'; ctx.fillRect(t.x, t.y, t.w, t.h); ctx.fillStyle = '#34495e'; ctx.fillRect(t.x-2, t.y-2, t.w+4, 16); ctx.fillStyle = '#000'; ctx.fillRect(t.dir === 1 ? t.x + t.w : t.x - 12, t.y + 10, 12, 16); }
+
+        for (let w of warnings) { ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 40px sans-serif'; ctx.fillText('!', w.x + 10, w.y); }
+        ctx.shadowBlur = 10; ctx.shadowColor = '#ff0000'; ctx.fillStyle = '#ff0000'; for (const l of lasers) { ctx.fillRect(l.x, l.y, l.w, l.h); ctx.fillStyle = '#ffc0c0'; ctx.fillRect(l.x + 3, l.y, l.w - 6, l.h); ctx.fillStyle = '#ff0000'; } for (const p of particles) { ctx.shadowColor = p.color; ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill(); } ctx.globalAlpha = 1; ctx.shadowBlur = 0; 
+
+        for (const e of enemies) {
+            if (e.type === 'goomba') {
+                if (e.isSquished) { ctx.fillStyle = '#8b4513'; ctx.fillRect(e.x, e.y + 24, e.width, 8); } 
+                else { ctx.fillStyle = '#8b4513'; ctx.fillRect(e.x + 2, e.y + 10, e.width - 4, e.height - 10); ctx.fillStyle = '#ffcc99'; ctx.fillRect(e.x + 6, e.y + 16, e.width - 12, 10); ctx.fillStyle = 'white'; ctx.fillRect(e.x + 8, e.y + 18, 6, 6); ctx.fillRect(e.x + e.width - 14, e.y + 18, 6, 6); ctx.fillStyle = 'black'; ctx.fillRect(e.x + (e.dx>0?10:8), e.y + 20, 2, 2); ctx.fillRect(e.x + (e.dx>0?e.width-12:e.width-14), e.y + 20, 2, 2); let legOffset = (Math.floor(frameCount / 5) % 2 === 0) ? 2 : -2; ctx.fillStyle = 'black'; ctx.fillRect(e.x + 6 + legOffset, e.y + e.height, 6, 4); ctx.fillRect(e.x + e.width - 12 - legOffset, e.y + e.height, 6, 4); }
+            } 
+            else if (e.type === 'bomb') { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(e.x + 15, e.y + 15, 14, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = 'white'; ctx.beginPath(); ctx.ellipse(e.x + (e.dx>0?20:10), e.y + 12, 4, 6, 0, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.ellipse(e.x + (e.dx>0?21:9), e.y + 12, 2, 3, 0, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(e.x+15, e.y+1); ctx.quadraticCurveTo(e.x+20, e.y-10, e.x+10, e.y-15); ctx.stroke(); if (frameCount % 4 < 2) { ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(e.x+10, e.y-15, 4, 0, Math.PI*2); ctx.fill(); } let runAnim = e.isActive ? (Math.floor(frameCount / 3) % 2 === 0 ? 4 : -4) : 0; ctx.fillStyle = '#f39c12'; ctx.fillRect(e.x + 6 + runAnim, e.y + 28, 6, 4); ctx.fillRect(e.x + 18 - runAnim, e.y + 28, 6, 4); }
+            else if (e.type === 'bullet') { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(e.x + (e.dx>0 ? e.width-13 : 13), e.y + 13, 13, 0, Math.PI*2); ctx.fill(); ctx.fillRect(e.x + (e.dx>0 ? 0 : 13), e.y, e.width-13, 26); ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(e.x + (e.dx>0 ? 25 : 11), e.y + 10, 4, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(e.x + (e.dx>0 ? 27 : 9), e.y + 10, 2, 0, Math.PI*2); ctx.fill(); if(!e.isFalling) { ctx.fillStyle = '#bdc3c7'; ctx.fillRect(e.x + (e.dx>0 ? -4 : e.width), e.y + 8, 4, 10); } }
+        }
+
+        if (boss) {
+            let bx = boss.x; let by = boss.y;
+            if (boss.type === 'robot' && boss.invulnTimer % 4 < 2) { ctx.fillStyle = '#7f8c8d'; ctx.fillRect(bx, by + 10, boss.width, boss.height - 10); ctx.fillStyle = '#34495e'; ctx.fillRect(bx - 10, by + 40, 10, 40); ctx.fillRect(bx + boss.width, by + 40, 10, 40); ctx.fillStyle = '#2c3e50'; ctx.fillRect(bx + 10, by, boss.width - 20, 10); let eyeCenter = bx + boss.width / 2; ctx.fillStyle = '#000'; ctx.fillRect(bx + 10, by + 30, boss.width - 20, 30); ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(eyeCenter + Math.sin(frameCount*0.1)*10, by + 45, 10, 0, Math.PI*2); ctx.fill(); let lightIndex = Math.floor(frameCount / 4) % 4; let colors = ['#e74c3c', '#f1c40f', '#2ecc71', '#9b59b6']; for(let i=0; i<4; i++) { ctx.fillStyle = colors[(lightIndex + i) % 4]; ctx.beginPath(); ctx.arc(bx + 20 + (i * 26), by + 90, 6, 0, Math.PI*2); ctx.fill(); } ctx.fillStyle = '#000'; ctx.fillRect(bx + boss.width/2 - 15, by + boss.height - 15, 30, 15); ctx.fillStyle = '#7f2121'; ctx.fillRect(bx + 10, by - 20, boss.width - 20, 8); ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx + 10, by - 20, (boss.width - 20) * (boss.hp / boss.maxHp), 8); } 
+            else if (boss.type === 'drill' && boss.invulnTimer % 4 < 2 && boss.y < 550) { ctx.save(); ctx.translate(bx + boss.width/2, by + boss.height/2); if (boss.state === 'stunned') ctx.translate(Math.random()*6-3, Math.random()*6-3); if (boss.state === 'charge' || boss.state === 'surface_prepare' || boss.state === 'stunned') ctx.rotate((boss.facing > 0) ? Math.PI/2 : -Math.PI/2); if (boss.state === 'thrust' || boss.state === 'charge') { ctx.fillStyle = 'rgba(255, 242, 175, 0.15)'; ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(-120, -300); ctx.lineTo(120, -300); ctx.closePath(); ctx.fill(); } ctx.fillStyle = '#a0522d'; ctx.beginPath(); ctx.arc(0, 15, 36, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(0, -12, 28, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#2c3e50'; ctx.fillRect(-16, -2, 12, 8); ctx.fillRect(4, -2, 12, 8); ctx.fillRect(-16, 1, 32, 2); ctx.fillStyle = '#ff9999'; ctx.beginPath(); ctx.arc(0, 8, 6, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.moveTo(-25, -25); ctx.lineTo(25, -25); ctx.lineTo(0, -75); ctx.fill(); ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 4; let offset = (frameCount * 3.0) % 12; for(let i=0; i<5; i++) { ctx.beginPath(); let lineY = -25 - (i*10) - offset; if(lineY > -70) { ctx.moveTo(-18 + i*3, lineY); ctx.lineTo(18 - i*3, lineY + 4); ctx.stroke(); } } ctx.fillStyle = '#34495e'; ctx.fillRect(-48, -5, 14, 45); ctx.fillRect(34, -5, 14, 45); ctx.restore(); if (boss.state !== 'intro' && boss.state !== 'hide') { ctx.fillStyle = '#7f2121'; ctx.fillRect(bx, by - 25, boss.width, 8); ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx, by - 25, boss.width * (boss.hp / boss.maxHp), 8); } }
+            else if (boss.type === 'bombKing' && boss.invulnTimer % 4 < 2) { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(bx + 50, by + 50, 45, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#34495e'; ctx.fillRect(bx + 35, by - 15, 30, 20); ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.moveTo(bx+30, by-15); ctx.lineTo(bx+40, by-35); ctx.lineTo(bx+50, by-20); ctx.lineTo(bx+60, by-35); ctx.lineTo(bx+70, by-15); ctx.fill(); ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.moveTo(bx+20, by+30); ctx.lineTo(bx+40, by+40); ctx.lineTo(bx+20, by+45); ctx.fill(); ctx.beginPath(); ctx.moveTo(bx+80, by+30); ctx.lineTo(bx+60, by+40); ctx.lineTo(bx+80, by+45); ctx.fill(); let bLegs = (boss.state === 'jump') ? -10 : 0; ctx.fillStyle = '#7f8c8d'; ctx.fillRect(bx + 15, by + 90 + bLegs, 20, 10); ctx.fillRect(bx + 65, by + 90 + bLegs, 20, 10); ctx.fillStyle = '#7f2121'; ctx.fillRect(bx, by - 45, boss.width, 8); ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx, by - 45, boss.width * (boss.hp / boss.maxHp), 8); }
+            // MEGA TURRET DRAW
+            else if (boss.type === 'cannonBoss' && boss.invulnTimer % 4 < 2) {
+                ctx.fillStyle = '#2c3e50'; ctx.fillRect(bx, by, boss.width, boss.height); ctx.fillStyle = '#1a252f'; ctx.fillRect(bx + 10, by, boss.width - 20, boss.height);
+                ctx.fillStyle = '#f39c12'; ctx.fillRect(bx, by, boss.width, 15); if (boss.state === 'shoot_sequence' || boss.state === 'vulnerable') { ctx.fillStyle = '#e74c3c'; ctx.fillRect(bx + 20, by - 5, boss.width - 40, 10); } 
+                ctx.fillStyle = '#000'; ctx.fillRect(bx - 30, by + 40, 30, 40); ctx.fillRect(bx - 30, by + 140, 30, 40); ctx.fillRect(bx - 30, by + 240, 30, 40); 
+                ctx.fillStyle = '#7f2121'; ctx.fillRect(bx, by - 25, boss.width, 8); ctx.fillStyle = '#2ecc71'; ctx.fillRect(bx, by - 25, boss.width * (boss.hp / boss.maxHp), 8);
+            }
+        }
+
+        // Mario / Gario
+        let px = player.x; let py = player.y; let lookDir = player.dx >= 0 ? 1 : -1;
+        ctx.fillStyle = '#c0392b'; ctx.fillRect(player.dx >= 0 ? px + 4 : px + 20, py + 18, 8, 12); ctx.fillStyle = '#e52521'; ctx.fillRect(px + 8, py + 16, 16, 12);  ctx.fillStyle = '#0952cb'; ctx.fillRect(px + 6, py + 22, 20, 16); 
+        ctx.fillStyle = '#ffcc99'; ctx.beginPath(); ctx.arc(px + 16, py + 11, 10, 0, Math.PI*2); ctx.fill(); 
+        if (isDead) { ctx.fillStyle = '#000'; ctx.font = '12px bold Arial'; ctx.fillText('X X', px + 7, py + 14); } 
+        else { ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(px + 16 + (lookDir*4), py + 8, 3.5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(px + 16 + (lookDir*5), py + 8, 1.5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = 'black'; ctx.fillRect(px + 16 + (lookDir * 4) - 5, py + 11, 10, 3); }
+        ctx.fillStyle = '#e52521'; ctx.beginPath(); ctx.arc(px + 16, py + 5, 10, Math.PI, 0); ctx.fill(); ctx.fillRect(px + 16 + (lookDir*4) - 7, py + 2, 14, 3); ctx.fillStyle = '#5c2d00'; ctx.beginPath(); ctx.ellipse(px + 10, py + 42, 6, 4, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(px + 22, py + 42, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    loadLevel(currentLevel); gameLoop();
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Basket</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', sans-serif; }
+        canvas { border: 2px solid #333; box-shadow: 0 0 50px rgba(0,255,255,0.1); cursor: crosshair; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #fff; font-size: 24px; text-shadow: 0 0 10px #00f; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="ui">LEVEL: <span id="levelDisplay">1</span></div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const levelDisplay = document.getElementById('levelDisplay');
+
+canvas.width = 800;
+canvas.height = 600;
+
+let currentLevel = 1;
+let ball = { x: 100, y: 500, radius: 15, color: '#FF8C00', glow: '#FFD700', vx: 0, vy: 0, active: false, spikeAngle: 0 };
+let target = { x: 680, y: 250, size: 55, color: '#FF0000', direction: 1, speed: 0 };
+let fan = { x: 450, y: 10, width: 60, height: 45, angle: 0, active: false };
+let walls = []; // Duvarları tutacak dizi
+let particles = []; // Patlama parçacıkları
+let mousedown = false;
+let mousePos = { x: 0, y: 0 };
+let message = "";
+
+const gravity = 0.22;
+const windPush = 0.6;
+const kineticLoss = 0.90;
+const wallColor = '#FF00FF'; // Kırmızı neon duvar rengi
+
+// Duvar parçacıkları için sınıf
+class Particle {
+    constructor(x, y, color, vx, vy) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.radius = Math.random() * 3 + 1;
+        this.alpha = 1;
+        this.gravity = 0.05;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += this.gravity;
+        this.alpha -= 0.02;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+
+function updateLevelSettings() {
+    levelDisplay.innerText = currentLevel;
+    target.speed = currentLevel > 2 ? (currentLevel - 2) * 1.5 : 0;
+    fan.active = currentLevel >= 5;
+    if(fan.active) fan.x = 450 + (currentLevel * 10); 
+    
+    // Duvarları her seviye değişiminde sıfırla ve yeniden oluştur
+    walls = [];
+    if (currentLevel >= 6) {
+        // Her seviyeye göre farklı duvar konfigürasyonu
+        if (currentLevel === 6) {
+            walls.push({ x: 350, y: 200, width: 10, height: 100 });
+        } else if (currentLevel === 7) {
+            walls.push({ x: 300, y: 150, width: 10, height: 150 });
+            walls.push({ x: 500, y: 300, width: 10, height: 100 });
+        } else if (currentLevel === 8) {
+             walls.push({ x: 400, y: 100, width: 10, height: 120 });
+             walls.push({ x: 400, y: 300, width: 10, height: 120 });
+        } else if (currentLevel === 9) {
+             walls.push({ x: 280, y: 150, width: 10, height: 100 });
+             walls.push({ x: 450, y: 250, width: 10, height: 100 });
+             walls.push({ x: 600, y: 100, width: 10, height: 150 });
+        } else if (currentLevel === 10) {
+            walls.push({ x: 300, y: 100, width: 10, height: 150 });
+            walls.push({ x: 500, y: 50, width: 10, height: 200 });
+            walls.push({ x: 300, y: 350, width: 10, height: 100 });
+        }
+    }
+}
+
+canvas.addEventListener('mousedown', (e) => { if (!ball.active) { mousedown = true; getMousePos(e); } });
+window.addEventListener('mousemove', (e) => { if (mousedown) getMousePos(e); });
+window.addEventListener('mouseup', () => {
+    if (mousedown) {
+        ball.vx = (ball.x - mousePos.x) * 0.16;
+        ball.vy = (ball.y - mousePos.y) * 0.16;
+        ball.active = true;
+        mousedown = false;
+    }
+});
+
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    mousePos.x = e.clientX - rect.left;
+    mousePos.y = e.clientY - rect.top;
+}
+
+function drawTrajectory() {
+    let tX = ball.x, tY = ball.y, tVX = (ball.x - mousePos.x) * 0.16, tVY = (ball.y - mousePos.y) * 0.16;
+    ctx.beginPath();
+    ctx.setLineDash([2, 6]);
+    ctx.strokeStyle = "rgba(0, 255, 255, 0.4)";
+    for (let i = 0; i < 60; i++) {
+        ctx.lineTo(tX, tY);
+        if (fan.active && tX > fan.x && tX < fan.x + fan.width && tY > fan.y) {
+            tVX *= kineticLoss;
+            tVY *= kineticLoss;
+            tVY += windPush;
+        }
+        tX += tVX; tY += tVY;
+        tVY += gravity;
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+}
+
+function update() {
+    target.y += target.speed * target.direction;
+    if (target.y <= 60 || target.y >= 480) target.direction *= -1;
+
+    if (fan.active) fan.angle += 0.5;
+    ball.spikeAngle += 0.1; // Dikenlerin dönüşü
+
+    // Parçacıkları güncelle
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        if (particles[i].alpha <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+
+    if (ball.active) {
+        if (fan.active && ball.x > fan.x && ball.x < fan.x + fan.width && ball.y > fan.y) {
+            ball.vx *= kineticLoss;
+            ball.vy *= kineticLoss;
+            ball.vy += windPush;
+        }
+
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+        ball.vy += gravity;
+
+        // Duvar çarpışma kontrolü
+        for (let i = walls.length - 1; i >= 0; i--) {
+            let wall = walls[i];
+            if (ball.x + ball.radius > wall.x && ball.x - ball.radius < wall.x + wall.width &&
+                ball.y + ball.radius > wall.y && ball.y - ball.radius < wall.y + wall.height) {
+                
+                // Çarpışma anında parçacık oluştur
+                for (let j = 0; j < 20; j++) {
+                    particles.push(new Particle(wall.x + wall.width/2, wall.y + wall.height/2, wallColor, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5));
+                }
+                walls.splice(i, 1); // Duvarı kaldır
+                // Topun hızını hafifçe değiştir (duvara çarpmış gibi)
+                ball.vx *= -0.5; // Geri sektir ve hızını azalt
+                ball.vy *= -0.5; // Dikey hızı da etkile
+                message = "THE WALL HAS COLLAPSED!";
+                setTimeout(() => message = "", 800);
+            }
+        }
+
+        if (ball.x > target.x && ball.x < target.x + target.size && ball.y > target.y && ball.y < target.y + target.size) {
+            ball.active = false;
+            message = currentLevel < 10 ? "AWESOME!" : "CHAMPION!";
+            currentLevel = currentLevel < 10 ? currentLevel + 1 : 1;
+            updateLevelSettings(); resetBall();
+        }
+        if (ball.y > canvas.height + 50 || ball.x > canvas.width + 50 || ball.x < -50) resetBall();
+    }
+}
+
+function resetBall() {
+    ball.active = false;
+    setTimeout(() => {
+        ball.x = 100; ball.y = 500; ball.vx = 0; ball.vy = 0;
+        if(message !== "") setTimeout(() => message = "", 1200);
+    }, 200);
+}
+
+function drawFan() {
+    if (!fan.active) return;
+    ctx.save();
+    ctx.shadowBlur = 15; ctx.shadowColor = "#00ffff";
+    ctx.strokeStyle = "#00ffff"; ctx.lineWidth = 4;
+    ctx.strokeRect(fan.x, fan.y, fan.width, fan.height);
+    
+    ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
+    ctx.lineWidth = 2;
+    for(let i=0; i<3; i++) {
+        let rx = fan.x + (i * (fan.width/3)) + (fan.width/6);
+        let flow = (Date.now() / 1.5) % 300;
+        ctx.beginPath(); ctx.moveTo(rx, fan.y + fan.height); ctx.lineTo(rx, fan.y + fan.height + flow); ctx.stroke();
+    }
+
+    ctx.translate(fan.x + fan.width/2, fan.y + fan.height/2);
+    ctx.rotate(fan.angle);
+    ctx.strokeStyle = "#fff"; ctx.shadowBlur = 8;
+    for(let i=0; i<3; i++) {
+        ctx.rotate((Math.PI * 2) / 3);
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, 15); ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function draw() {
+    let grad = ctx.createRadialGradient(400, 300, 0, 400, 300, 600);
+    grad.addColorStop(0, "#111"); grad.addColorStop(1, "#000");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (mousedown) drawTrajectory();
+    drawFan();
+
+    // Duvarları çiz
+    ctx.shadowBlur = 10; ctx.shadowColor = wallColor; ctx.strokeStyle = wallColor; ctx.lineWidth = 5;
+    walls.forEach(wall => {
+        ctx.strokeRect(wall.x, wall.y, wall.width, wall.height);
+    });
+
+    // Pota
+    ctx.shadowBlur = 20; ctx.shadowColor = target.color;
+    ctx.strokeStyle = target.color; ctx.lineWidth = 5;
+    ctx.strokeRect(target.x, target.y, target.size, target.size);
+
+    // Top
+    ctx.shadowBlur = 25; ctx.shadowColor = ball.glow;
+    ctx.fillStyle = ball.color; ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); ctx.fill();
+
+    // Topun dikenleri
+    ctx.save();
+    ctx.translate(ball.x, ball.y);
+    ctx.rotate(ball.spikeAngle);
+    ctx.strokeStyle = "#888"; // Gri renk
+    ctx.shadowBlur = 5; ctx.shadowColor = "#eee";
+    ctx.lineWidth = 1;
+    for(let i=0; i<6; i++) {
+        ctx.rotate(Math.PI / 3); // 6 diken için 60 derece
+        ctx.beginPath(); ctx.moveTo(ball.radius + 2, 0); ctx.lineTo(ball.radius + 8, 0); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Patlama parçacıklarını çiz
+    particles.forEach(p => p.draw());
+
+    if (message) {
+        ctx.shadowBlur = 15; ctx.fillStyle = "#fff"; ctx.font = "bold 50px Courier New";
+        ctx.textAlign = "center"; ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+    }
+
+    ctx.shadowBlur = 0;
+    update();
+    requestAnimationFrame(draw);
+}
+
+updateLevelSettings();
+draw();
+</script>
+</body>
+</html>

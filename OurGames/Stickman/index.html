@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Stickman Runner - Dynamic Math Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #40c4ff;
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
+        }
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .screen {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 35px;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            border: 3px solid #fff;
+            color: #222;
+            max-width: 400px;
+        }
+        h1 {
+            margin: 0 0 12px 0;
+            color: #0088ff;
+            font-size: 28px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        p {
+            color: #555;
+            margin: 0 0 25px 0;
+            line-height: 1.5;
+        }
+        button {
+            background: #2ecc71;
+            color: #fff;
+            border: none;
+            padding: 14px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 5px 20px rgba(46, 204, 113, 0.4);
+        }
+        button:hover {
+            transform: scale(1.05);
+            background: #27ae60;
+        }
+        #level-indicator {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            display: none;
+        }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div id="level-indicator">LEVEL 1</div>
+        <div id="start-screen" class="screen">
+            <h1>STICKMAN RUNNER</h1>
+            <p>Calculate your path to beat the boss! Use <b>A</b> and <b>D</b> to move.</p>
+            <button onclick="startGame(true)">PLAY</button>
+        </div>
+        <div id="gameover-screen" class="screen" style="display:none;">
+            <h1 style="color:#e74c3c;">YOU LOST!</h1>
+            <p>Your math was slightly off! You didn't have enough stickmen to beat the boss.</p>
+            <button onclick="startGame(false)">TRY AGAIN</button>
+        </div>
+        <div id="victory-screen" class="screen" style="display:none;">
+            <h1 style="color:#2ecc71;">PERFECT VICTORY!</h1>
+            <p>Your calculations were spot on. The boss is defeated!</p>
+            <button onclick="startGame(true)">NEXT LEVEL</button>
+        </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        let scene, camera, renderer;
+        let gameState = 'START';
+        let playerCount = 1;
+        let bossCount = 20;
+        let currentLevel = 1; 
+        
+        let playerGroup, bossGroup;
+        let gates = [];
+        let particles = [];
+        let keys = { a: false, d: false };
+        
+        const speed = 0.18; 
+        const sideSpeed = 0.12; 
+        const trackWidth = 8;
+        const trackLength = 260;
+
+        let playerVisualGroup, bossVisualGroup;
+        let playerCountSprite, bossCountSprite;
+        let clock = new THREE.Clock();
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playVictorySound() {
+            initAudio();
+            const now = audioCtx.currentTime;
+            const notes = [300, 450, 600];
+            notes.forEach((freq, index) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, now + index * 0.12);
+                gain.gain.setValueAtTime(0.15, now + index * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + index * 0.12 + 0.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + index * 0.12);
+                osc.stop(now + index * 0.12 + 0.2);
+            });
+        }
+
+        function playGameOverSound() {
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(220, now);
+            osc.frequency.linearRampToValueAtTime(80, now + 0.6);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.6);
+        }
+
+        // YENİ: DİNAMİK KAPI ÜRETİCİSİ
+        // Bu fonksiyon, Boss'u yenebilmen için en yüksek puanlı yoldan
+        // geçtiğinde kesinlikle 'targetScore' sayısına ulaşmanı garanti eder.
+        function generateDynamicGates(targetScore) {
+            let zPos = -45;
+            let dynamicGates = [];
+            let currentValue = 1;
+
+            for (let i = 0; i < 4; i++) {
+                let goodGate, badGate;
+                let remaining = targetScore - currentValue;
+
+                if (i === 3) {
+                    // Son kapı: Kalan eksiği tamamlar, böylece hedef puana kesin ulaşılır.
+                    let addVal = Math.max(1, targetScore - currentValue + Math.floor(Math.random() * 4));
+                    goodGate = { type: '+', val: addVal, txt: '+' + addVal };
+                    currentValue += addVal;
+                } else if (i === 1 && targetScore > 40) {
+                    // Yüksek levellerde 2. kapıda çarpma işlemi çıkartır
+                    let mulVal = Math.random() > 0.5 ? 2 : 3;
+                    goodGate = { type: 'x', val: mulVal, txt: 'X' + mulVal };
+                    currentValue *= mulVal;
+                } else {
+                    // Normal toplama kapısı (Eksiğin bir kısmını kapatır)
+                    let chunk = Math.floor(remaining / (4 - i));
+                    if (chunk <= 0) chunk = 3; 
+                    goodGate = { type: '+', val: chunk, txt: '+' + chunk };
+                    currentValue += chunk;
+                }
+
+                // Kötü (yanıltıcı) kapıyı oluştur
+                let badRand = Math.random();
+                if (badRand < 0.3) {
+                    let pen = Math.floor(Math.random() * 10) + 5;
+                    badGate = { type: '-', val: pen, txt: '-' + pen };
+                } else if (badRand < 0.6 && currentValue > 10) {
+                    badGate = { type: '/', val: 2, txt: '/2' };
+                } else {
+                    let fakeVal = Math.max(1, Math.floor(goodGate.val * 0.4));
+                    if (goodGate.type === 'x') {
+                        // Eğer doğru kapı X ise, kötü kapı cazip görünmeye çalışan bir '+' olur
+                        fakeVal = Math.max(5, Math.floor(currentValue * 0.6)); 
+                        badGate = { type: '+', val: fakeVal, txt: '+' + fakeVal };
+                    } else {
+                        badGate = { type: '+', val: fakeVal, txt: '+' + fakeVal };
+                    }
+                }
+
+                // Hangi tarafın doğru olacağını rastgele seç
+                let isLeftGood = Math.random() > 0.5;
+                dynamicGates.push({
+                    z: zPos,
+                    l: isLeftGood ? goodGate : badGate,
+                    r: isLeftGood ? badGate : goodGate
+                });
+                zPos -= 50;
+            }
+            return dynamicGates;
+        }
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x54ccff); 
+            scene.fog = new THREE.FogExp2(0x54ccff, 0.01);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(10, 40, 20);
+            scene.add(sunLight);
+
+            const seaGeo = new THREE.PlaneGeometry(2000, 2000);
+            const seaMat = new THREE.MeshStandardMaterial({ color: 0x3bbfff, roughness: 0.2, metalness: 0.1 });
+            const sea = new THREE.Mesh(seaGeo, seaMat);
+            sea.rotation.x = -Math.PI / 2;
+            sea.position.y = -0.5;
+            scene.add(sea);
+
+            const trackGroup = new THREE.Group();
+            const segmentLength = 4; 
+            const totalSegments = Math.ceil(trackLength / segmentLength);
+            
+            for(let i = 0; i < totalSegments; i++) {
+                const segGeo = new THREE.BoxGeometry(trackWidth, 0.1, segmentLength);
+                const segColor = (i % 2 === 0) ? 0xfff0f5 : 0xffd1dc; 
+                const segMat = new THREE.MeshStandardMaterial({ color: segColor, roughness: 0.7 });
+                const segment = new THREE.Mesh(segGeo, segMat);
+                segment.position.set(0, -0.05, -(i * segmentLength) - (segmentLength/2));
+                trackGroup.add(segment);
+            }
+            scene.add(trackGroup);
+
+            playerGroup = new THREE.Group();
+            scene.add(playerGroup);
+            playerVisualGroup = new THREE.Group();
+            playerGroup.add(playerVisualGroup);
+
+            playerCountSprite = createSpeechBubbleSprite('1', '#7ca1cc');
+            playerCountSprite.position.set(0, 2.2, 0);
+            playerGroup.add(playerCountSprite);
+
+            bossGroup = new THREE.Group();
+            bossGroup.position.set(0, 0, -trackLength + 20);
+            scene.add(bossGroup);
+            bossVisualGroup = new THREE.Group();
+            bossGroup.add(bossVisualGroup);
+
+            bossCountSprite = createSpeechBubbleSprite(bossCount.toString(), '#e57373');
+            bossCountSprite.position.set(0, 2.4, 0);
+            bossGroup.add(bossCountSprite);
+
+            window.addEventListener('keydown', e => {
+                if(e.key.toLowerCase() === 'a') keys.a = true;
+                if(e.key.toLowerCase() === 'd') keys.d = true;
+            });
+            window.addEventListener('keyup', e => {
+                if(e.key.toLowerCase() === 'a') keys.a = false;
+                if(e.key.toLowerCase() === 'd') keys.d = false;
+            });
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createClassicStickman(colorHex) {
+            const person = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 });
+
+            const torsoGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.45, 8);
+            const torso = new THREE.Mesh(torsoGeo, mat);
+            torso.position.y = 0.45;
+            person.add(torso);
+
+            const headGeo = new THREE.SphereGeometry(0.15, 16, 16);
+            const head = new THREE.Mesh(headGeo, mat);
+            head.position.y = 0.78; 
+            person.add(head);
+
+            const leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.07, 0.25, 0); 
+            const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6);
+            const leftLegMesh = new THREE.Mesh(legGeo, mat);
+            leftLegMesh.position.y = -0.15; 
+            leftLegPivot.add(leftLegMesh);
+            leftLegPivot.name = "leftLeg";
+            person.add(leftLegPivot);
+
+            const rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(0.07, 0.25, 0);
+            const rightLegMesh = leftLegMesh.clone();
+            rightLegPivot.add(rightLegMesh);
+            rightLegPivot.name = "rightLeg";
+            person.add(rightLegPivot);
+
+            const leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-0.09, 0.6, 0); 
+            const armGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.28, 6);
+            const leftArmMesh = new THREE.Mesh(armGeo, mat);
+            leftArmMesh.position.y = -0.14; 
+            leftArmPivot.add(leftArmMesh);
+            leftArmPivot.name = "leftArm";
+            person.add(leftArmPivot);
+
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(0.09, 0.6, 0);
+            const rightArmMesh = leftArmMesh.clone();
+            rightArmPivot.add(rightArmMesh);
+            rightArmPivot.name = "rightArm";
+            person.add(rightArmPivot);
+
+            return person;
+        }
+
+        function animateHumanLimbs(person, time, isFighting) {
+            const leftLeg = person.getObjectByName("leftLeg");
+            const rightLeg = person.getObjectByName("rightLeg");
+            const leftArm = person.getObjectByName("leftArm");
+            const rightArm = person.getObjectByName("rightArm");
+
+            if (leftLeg && rightLeg && leftArm && rightArm) {
+                if (isFighting) {
+                    leftArm.rotation.x = -Math.PI / 2 + Math.sin(time * 40) * 1.1; 
+                    rightArm.rotation.x = -Math.PI / 2 + Math.cos(time * 40) * 1.1; 
+                    leftLeg.rotation.x = Math.sin(time * 15) * 0.1;
+                    rightLeg.rotation.x = Math.cos(time * 15) * 0.1;
+                } else {
+                    const swing = Math.sin(time * 14) * 0.7; 
+                    leftLeg.rotation.x = swing;
+                    rightLeg.rotation.x = -swing;
+                    leftArm.rotation.x = -swing * 0.9;
+                    rightArm.rotation.x = swing * 0.9;
+                }
+            }
+        }
+
+        function build3DGates(gateData) {
+            gateData.forEach(data => {
+                let leftGate = createAbsoluteGateMesh(data.l.type, data.l.txt, -2, data.z);
+                let rightGate = createAbsoluteGateMesh(data.r.type, data.r.txt, 2, data.z);
+
+                gates.push({
+                    z: data.z,
+                    passed: false,
+                    left: data.l,
+                    right: data.r,
+                    meshes: [...leftGate.meshes, ...rightGate.meshes]
+                });
+            });
+        }
+
+        function createAbsoluteGateMesh(type, text, xPos, zPos) {
+            const isGood = (type === '+' || type === 'x' || type === 'X');
+            const mainColor = isGood ? 0x4caaff : 0xe74c3c;
+            
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x6bbfff, roughness: 0.3 });
+            const leftPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 12), pillarMat);
+            leftPillar.position.set(xPos - 1.8, 1.1, zPos);
+            const rightPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 12), pillarMat);
+            rightPillar.position.set(xPos + 1.8, 1.1, zPos);
+            scene.add(leftPillar, rightPillar);
+
+            const panelGeo = new THREE.BoxGeometry(3.6, 1.6, 0.02); 
+            const panelMat = new THREE.MeshStandardMaterial({
+                color: mainColor,
+                transparent: true,
+                opacity: 0.4,
+                roughness: 0.1,
+                side: THREE.DoubleSide,
+                depthWrite: false 
+            });
+            const panel = new THREE.Mesh(panelGeo, panelMat);
+            panel.position.set(xPos, 1.1, zPos); 
+            scene.add(panel);
+
+            const textMesh = create3DTextPlaneMesh(text);
+            textMesh.position.set(xPos, 1.3, zPos + 0.05); 
+            scene.add(textMesh);
+
+            return { meshes: [leftPillar, rightPillar, panel, textMesh] };
+        }
+
+        function create3DTextPlaneMesh(text) {
+            const canvas = document.createElement('canvas'); 
+            canvas.width = 512; 
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, 512, 256);
+            ctx.font = 'bold 130px Arial'; 
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle';
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 24;
+            ctx.strokeText(text, 256, 128);
+            
+            ctx.fillStyle = '#111111'; 
+            ctx.fillText(text, 256, 128);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true, 
+                side: THREE.DoubleSide,
+                depthWrite: false 
+            });
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), mat);
+            return mesh;
+        }
+
+        function drawSpeechBubble(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + width / 2 + 10, y + height);
+            ctx.lineTo(x + width / 2, y + height + 15);
+            ctx.lineTo(x + width / 2 - 10, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        function createSpeechBubbleSprite(text, bgColorHex) {
+            const canvas = document.createElement('canvas'); 
+            canvas.width = 160; 
+            canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = bgColorHex;
+            drawSpeechBubble(ctx, 5, 5, 150, 70, 35);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff'; 
+            ctx.font = 'bold 36px Arial'; 
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 150 / 2 + 5, 70 / 2 + 5);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
+            sprite.scale.set(1.4, 0.875, 1);
+            return sprite;
+        }
+
+        function updateSpriteText(sprite, text, bgColorHex) {
+            const canvas = sprite.material.map.image;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,160,100);
+            
+            ctx.fillStyle = bgColorHex;
+            drawSpeechBubble(ctx, 5, 5, 150, 70, 35);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff'; 
+            ctx.font = 'bold 36px Arial'; 
+            ctx.textAlign = 'center'; 
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 150 / 2 + 5, 70 / 2 + 5);
+            sprite.material.map.needsUpdate = true;
+        }
+
+        function updatePlayerCrowd() {
+            while(playerVisualGroup.children.length > 0) playerVisualGroup.remove(playerVisualGroup.children[0]);
+            let visualCount = Math.min(playerCount, 35); 
+            for(let i=0; i<visualCount; i++) {
+                const person = createClassicStickman(0x33e0ff); 
+                let radius = Math.min(0.22 * Math.sqrt(i), trackWidth/2.5);
+                let angle = i * 137.5 * (Math.PI / 2); 
+                person.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+                playerVisualGroup.add(person);
+            }
+            updateSpriteText(playerCountSprite, playerCount.toString(), '#6ca1cc');
+        }
+
+        function buildBossArmy() {
+            while(bossVisualGroup.children.length > 0) bossVisualGroup.remove(bossVisualGroup.children[0]);
+            let visualCount = Math.min(bossCount, 35);
+            for(let i=0; i<visualCount; i++) {
+                const person = createClassicStickman(0xff4455); 
+                let radius = Math.min(0.24 * Math.sqrt(i), trackWidth/2.5);
+                let angle = i * 137.5 * (Math.PI / 180);
+                person.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+                person.rotation.y = Math.PI; 
+                bossVisualGroup.add(person);
+            }
+        }
+
+        function updateBossCrowd() {
+            let currentVisuals = bossVisualGroup.children.length;
+            let targetVisuals = Math.min(bossCount, 35);
+            if (targetVisuals < currentVisuals) {
+                bossVisualGroup.remove(bossVisualGroup.children[currentVisuals - 1]);
+            }
+            updateSpriteText(bossCountSprite, bossCount.toString(), '#e57373');
+        }
+
+        function applyGateMath(gateSide) {
+            if(gateSide.type === '+') playerCount += gateSide.val;
+            if(gateSide.type === '-') playerCount -= gateSide.val;
+            if(gateSide.type === 'x' || gateSide.type === 'X') playerCount *= gateSide.val;
+            if(gateSide.type === '/') playerCount = Math.floor(playerCount / gateSide.val);
+
+            if(playerCount <= 0) { playerCount = 0; endGame('GAMEOVER'); }
+            updatePlayerCrowd();
+        }
+
+        function spawnRunParticles(x, z) {
+            if (Math.random() > 0.3) return;
+            const pGeo = new THREE.SphereGeometry(0.06, 4, 4);
+            const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+            const p = new THREE.Mesh(pGeo, pMat);
+            p.position.set(x + (Math.random()-0.5)*0.4, 0.02, z + 0.1);
+            p.userData = { vx: 0, vy: 0.02, vz: 0.04, life: 12 };
+            scene.add(p);
+            particles.push(p);
+        }
+
+        function spawnCombatSparks(zPos) {
+            for(let i=0; i<5; i++) {
+                const pGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
+                const pMat = new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x00e5ff : 0xff3d00 });
+                const p = new THREE.Mesh(pGeo, pMat);
+                p.position.set((Math.random()-0.5)*2, 0.5, zPos + (Math.random()-0.5)*1);
+                p.userData = {
+                    vx: (Math.random() - 0.5) * 0.12,
+                    vy: Math.random() * 0.12 + 0.04,
+                    vz: (Math.random() - 0.5) * 0.12,
+                    life: 20
+                };
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        function updateAllParticles() {
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.position.x += p.userData.vx || 0;
+                p.position.y += p.userData.vy || 0;
+                p.position.z += p.userData.vz || 0;
+                p.userData.life--;
+                if(p.userData.life <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        let fightTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            updateAllParticles();
+
+            playerVisualGroup.children.forEach(child => {
+                animateHumanLimbs(child, time, gameState === 'FIGHTING');
+                if (gameState === 'PLAYING') {
+                    spawnRunParticles(playerGroup.position.x + child.position.x, playerGroup.position.z + child.position.z);
+                }
+            });
+            bossVisualGroup.children.forEach(child => {
+                animateHumanLimbs(child, time, gameState === 'FIGHTING');
+            });
+
+            if (gameState === 'PLAYING') {
+                playerGroup.position.z -= speed;
+
+                if (keys.a && playerGroup.position.x > -trackWidth/2 + 0.6) playerGroup.position.x -= sideSpeed;
+                if (keys.d && playerGroup.position.x < trackWidth/2 - 0.6) playerGroup.position.x += sideSpeed;
+
+                camera.position.z = playerGroup.position.z + 7.5;
+                camera.position.y = playerGroup.position.y + 4.2;
+                camera.position.x = playerGroup.position.x * 0.3;
+                camera.lookAt(playerGroup.position.x, playerGroup.position.y + 0.6, playerGroup.position.z - 3);
+
+                gates.forEach(gate => {
+                    if (!gate.passed && playerGroup.position.z <= gate.z + 0.4 && playerGroup.position.z >= gate.z - 0.4) {
+                        gate.passed = true;
+                        if (playerGroup.position.x < 0) applyGateMath(gate.left);
+                        else applyGateMath(gate.right);
+                        gate.meshes.forEach(m => scene.remove(m));
+                    }
+                });
+
+                if (playerGroup.position.z <= bossGroup.position.z + 12) {
+                    gameState = 'FIGHTING';
+                    gates.forEach(gate => {
+                        if(!gate.passed) gate.meshes.forEach(m => scene.remove(m));
+                    });
+                }
+            }
+
+            if (gameState === 'FIGHTING') {
+                if (playerGroup.position.z > bossGroup.position.z + 1.2) {
+                    playerGroup.position.z -= 0.06;
+                    playerGroup.position.x += (0 - playerGroup.position.x) * 0.1;
+                } else {
+                    fightTimer++;
+                    if (fightTimer % 6 === 0) { 
+                        if (playerCount > 0 && bossCount > 0) {
+                            playerCount--;
+                            bossCount--;
+                            spawnCombatSparks(bossGroup.position.z); 
+                            updatePlayerCrowd();
+                            updateBossCrowd();
+                        } else {
+                            if (bossCount <= 0 && playerCount > 0) endGame('VICTORY');
+                            else endGame('GAMEOVER');
+                        }
+                    }
+                }
+                camera.position.set(3.5, 2.5, bossGroup.position.z + 5.5);
+                camera.lookAt(0, 0.6, bossGroup.position.z);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function startGame(isNextLevel) {
+            initAudio();
+
+            if (isNextLevel && gameState === 'VICTORY') {
+                currentLevel++;
+            }
+
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('gameover-screen').style.display = 'none';
+            document.getElementById('victory-screen').style.display = 'none';
+
+            const levelIndicator = document.getElementById('level-indicator');
+            levelIndicator.innerText = "LEVEL " + currentLevel;
+            levelIndicator.style.display = 'block';
+
+            playerCount = 1;
+            
+            // Boss sayısı tam olarak istediğin gibi level ile hesaplanıyor
+            bossCount = currentLevel * 20; 
+            
+            playerGroup.position.set(0, 0, 0);
+            
+            gates.forEach(gate => gate.meshes.forEach(m => scene.remove(m)));
+            gates = [];
+            
+            // Kusursuz kapı yaratıcısı: Düşmanı yenmen için sana Boss puanından 
+            // rastgele 3 ile 10 arası daha fazla puan sağlayacak doğru kapıları hesaplar.
+            const targetPlayerScore = bossCount + Math.floor(Math.random() * 8) + 3; 
+            const levelGates = generateDynamicGates(targetPlayerScore);
+            build3DGates(levelGates);
+            
+            buildBossArmy();
+            updatePlayerCrowd();
+            updateBossCrowd();
+
+            gameState = 'PLAYING';
+        }
+
+        function endGame(status) {
+            gameState = status;
+            document.getElementById('level-indicator').style.display = 'none';
+            
+            if (status === 'GAMEOVER') {
+                playGameOverSound();
+                document.getElementById('gameover-screen').style.display = 'block';
+            }
+            else if (status === 'VICTORY') {
+                playVictorySound();
+                document.getElementById('victory-screen').style.display = 'block';
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init3D();
+        animate();
+    </script>
+</body>
+</html>

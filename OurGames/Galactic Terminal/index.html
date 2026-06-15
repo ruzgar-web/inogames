@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Customs - FEVER & PANDEMIC Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; color: #fff; }
+        canvas { display: block; }
+        #ui-layer { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.9); z-index: 10; }
+        .hud { font-size: 20px; color: #00ffcc; margin-bottom: 5px; font-weight: bold; }
+        .money { font-size: 32px; color: #f1c40f; transition: transform 0.2s; }
+        .level { font-size: 22px; color: #3498db; margin-top: 5px; font-weight: bold; }
+        .perfect-counter { font-size: 22px; color: #ff9ff3; margin-top: 5px; }
+        #fever-ui { font-size: 26px; color: #ff3838; font-weight: bold; margin-top: 5px; display: none; text-shadow: 0 0 10px #ff3838; animation: pulse 0.5s infinite alternate; }
+        #interaction-text { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); background: rgba(46, 204, 113, 0.9); padding: 15px 30px; border-radius: 10px; font-size: 24px; display: none; border: 3px solid #fff; color: #fff; font-weight: bold; text-shadow: 1px 1px 2px #000; box-shadow: 0 0 20px rgba(0,0,0, 0.8); z-index: 10; }
+        #hack-warning { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); color: #ff0000; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 0 #000; display: none; animation: blink 1s infinite; z-index: 10; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="hud">Galactic Terminal v14.0 (Outbreak & Fever)</div>
+        <div class="hud money" id="money-display">Cash Register: <span id="money-val">0</span>$</div>
+        <div id="fever-ui">🔥 FEVER MODE: DOUBLE THE WINNINGS! 🔥</div>
+        <div class="level" id="level-ui">Station Rank: ⭐</div>
+        <div class="perfect-counter" id="perfect-ui">The Perfect Passenger: 0/3</div>
+        <div class="hud" style="color: #bbb; font-size: 16px; margin-top:10px;">WASD: Walk | F: Close | Q: Interaction</div>
+    </div>
+    
+    <div id="hack-warning">⚠ THE SYSTEM HAS BEEN HACKED! GO TO THE SERVER (WHITE CASE) ⚠</div>
+    <div id="interaction-text">PRESS THE Q KEY HERE!</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiMoney = document.getElementById('money-val');
+        const moneyDisplay = document.getElementById('money-display');
+        const uiPerfect = document.getElementById('perfect-ui');
+        const uiLevel = document.getElementById('level-ui');
+        const feverUI = document.getElementById('fever-ui');
+        const interactionUI = document.getElementById('interaction-text');
+        const hackWarningUI = document.getElementById('hack-warning');
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+        let gameState = 'playing'; 
+        let money = 8000;
+        let perfectCount = 0;
+        let stationLevel = 1;
+        let contrabandStock = 0; 
+        let passiveIncomeTimer = 0;
+        
+        // COMBO / FEVER SİSTEMİ
+        let comboCount = 0;
+        let feverTimer = 0;
+
+        // HACK SİSTEMİ (150 SN)
+        let isHacked = false;
+        let hackTargetCode = ['W', 'A', 'S', 'D'];
+        let hackIndex = 0;
+        let typedHack = "";
+        let hackTimer = Math.floor(Math.random() * 6000) + 1000; // İlki rastgele (saniyeler içinde)
+
+        // DEDEKTÖR BOZULMASI
+        let detectorBroken = false;
+        let detectorBreakTimer = Math.floor(Math.random() * 5000) + 3000;
+
+        const DANGEROUS = ['💣', '🔫'];
+        const NORMAL_LUGGAGE = [{ name: 'Banana', icon: '🍌' }, { name: 'Cola', icon: '🥤' }, { name: 'Soap', icon: '🧼' }, { name: 'Toy', icon: '🧸' }, { name: 'Book', icon: '📘' }];
+        const DANGER_LUGGAGE = [{ name: 'Bomb', icon: '💣' }, { name: 'Gun', icon: '🔫' }];
+        const POCKET_POOL = [{ icon: '🧨', isDangerous: true }, { icon: '🔪', isDangerous: true }, { icon: '📱', isDangerous: false }, { icon: '🔑', isDangerous: false }, { icon: '👛', isDangerous: false }, { icon: '🍬', isDangerous: false }, { icon: '🖊️', isDangerous: false }, { icon: '⌚', isDangerous: false }];
+
+     let shopItems = [
+    { id: 'shoes', name: 'Sports Shoes', desc: "You'll run faster", price: 300, bought: false },
+    { id: 'belt', name: 'Turbo Motor', desc: 'Belt speeds up.', price: 500, bought: false },
+    { id: 'scanner', name: 'Glasses', desc: 'Fake passport warning.', price: 800, bought: false },
+    { id: 'radar', name: 'Bonus Radar', desc: 'Marks the target.', price: 1500, bought: false },
+    { id: 'gold_suit', name: 'Gold Armor', desc: 'Character glows.', price: 2500, bought: false }
+	];
+
+	let horgItems = [
+    { id: 'collector', name: 'Cashier Robot', desc: 'Collects money.', price: 1000, bought: false },
+    { id: 'cleaner', name: 'Cleaning Robot', desc: 'Wipes the tables.', price: 1000, bought: false },
+    { id: 'jukebox', name: 'Jukebox', desc: 'Coffee is drunk quickly.', price: 1500, bought: false },
+    { id: 'arcade', name: 'Arcade Machine', desc: 'Passive income.', price: 2000, bought: false },
+    { id: 'sec_bot', name: 'Security Bot', desc: 'Performs automatic search.', price: 5000, bought: false }
+	];
+
+	let lorgItems = [
+    { id: 'moon', name: 'Moon Base', desc: 'Continuous +$500 income.', price: 50000, bought: false },
+    { id: 'mars', name: 'Red Mars', desc: 'Continuous +$2,500 income.', price: 150000, bought: false },
+    { id: 'nebula', name: 'Nebula Galaxy', desc: 'Continuous +$10,000 income.', price: 500000, bought: false }
+	];
+
+        const world = { width: 5000, height: 3500 };
+        const camera = { x: 0, y: 0 };
+        const CY = world.height / 2 - 200;
+        
+        const spawnPoint = { x: world.width / 2 - 1800, y: CY + 30 };
+        const player = { x: world.width / 2 - 100, y: CY + 180, speed: 8, angle: 0, radius: 25, animFrame: 0 };
+        let meteors = []; 
+
+        // YANKESİCİ (HIRSIZ)
+        let thief = { active: false, x: 0, y: CY + 150, speed: 18, anim: 0 };
+        let thiefTimer = Math.floor(Math.random() * 3000) + 2000;
+
+        const equip = {
+            belt: { x: world.width / 2 - 1000, y: CY - 80, w: 600, h: 80 },
+            scanner: { x: world.width / 2 - 800, y: CY - 90, w: 200, h: 100 },
+            detector: { x: world.width / 2 - 1150, y: CY - 100, w: 80, h: 160 },
+            serverDesk: { x: world.width / 2 - 250, y: CY - 60, w: 80, h: 100 }, 
+            passportDesk: { x: world.width / 2 - 100, y: CY - 60, w: 100, h: 120 },
+            pocketDesk: { x: world.width / 2 + 700, y: CY - 60, w: 200, h: 120 },
+            
+            // DÜKKANLAR VE SLOT YAN YANA AÇIKÇA DİZİLDİ (ÜST ÜSTE BİNME YOK)
+            lorgDesk: { x: world.width / 2 + 50, y: CY - 220, w: 180, h: 80 }, // Bitiş: 230
+            shopDesk: { x: world.width / 2 + 250, y: CY - 220, w: 180, h: 80 }, // Bitiş: 430
+            slotMachine: { x: world.width / 2 + 450, y: CY - 230, w: 80, h: 100 }, // Bitiş: 530
+            horgDesk: { x: world.width / 2 + 550, y: CY - 220, w: 180, h: 80 }, // Bitiş: 730
+            
+            vendingMachine: { x: world.width / 2 - 500, y: CY + 10, w: 60, h: 100 } // YENİ: OTOMAT
+        };
+
+        let droppedCoins = [];
+
+        const vipPlot = { x: world.width / 2 - 600, y: CY + 300, w: 400, h: 250 };
+        const interPlot = { x: world.width / 2 + 500, y: CY - 450, w: 300, h: 200 };
+        const quarantinePlot = { x: world.width / 2 + 850, y: CY - 450, w: 300, h: 200 }; 
+
+        let megaProjects = {
+            statue: { x: world.width / 2 + 1000, y: CY + 200, w: 300, h: 300, built: false, price: 5000 },
+            aquarium: { x: world.width / 2 + 1400, y: CY + 350, w: 400, h: 200, built: false, price: 15000 },
+            hotel: { x: world.width / 2 + 1400, y: CY - 100, w: 600, h: 400, built: false, price: 20000 }
+        };
+
+        let fishes = Array.from({length: 8}, () => ({ x: Math.random()*380, y: Math.random()*180, speed: 0.5 + Math.random(), size: 5 + Math.random()*5, color: ['#e84393', '#00ffcc', '#f1c40f'][Math.floor(Math.random()*3)] }));
+
+        let cafeBuilt = false; let arcadeTimer = 0; let vendingTimer = 0;
+        const cafePlot = { x: world.width / 2 + 100, y: CY + 400, w: 700, h: 350 };
+        let tables = [];
+        for(let i=0; i<4; i++) { tables.push({ id: i, x: cafePlot.x + 200 + (i%2)*300, y: cafePlot.y + 120 + Math.floor(i/2)*150, state: 'empty', timer: 0, wTarget: false, tipAmount: 50 }); }
+        
+        let workers = {
+            collector: { x: cafePlot.x + 50, y: cafePlot.y + 50, target: null, speed: 5, actionTimer: 0 },
+            cleaner: { x: cafePlot.x + 650, y: cafePlot.y + 50, target: null, speed: 5, actionTimer: 0 },
+            securityBot: { x: equip.detector.x + 40, y: equip.detector.y - 150, target: null, speed: 8, actionTimer: 0 }
+        };
+
+        let police = { active: false, x: spawnPoint.x, y: spawnPoint.y, state: 'none', animFrame: 0, targetX: 0, targetY: 0, timer: 0, bubbleText: null };
+        let backgroundStars = Array.from({length: 200}, () => ({ x: Math.random()*3000, y: Math.random()*200, speed: 0.5 + Math.random()*2, size: Math.random()*3 }));
+
+        const qZones = {
+            scanner: { x: equip.scanner.x + equip.scanner.w / 2, y: equip.scanner.y + equip.scanner.h + 40 },
+            server: { x: equip.serverDesk.x + equip.serverDesk.w / 2, y: equip.serverDesk.y + equip.serverDesk.h + 40 },
+            detectorFix: { x: equip.detector.x + equip.detector.w / 2, y: equip.detector.y + equip.detector.h + 40 },
+            passport: { x: equip.passportDesk.x + equip.passportDesk.w / 2, y: equip.passportDesk.y + equip.passportDesk.h + 40 },
+            pocket: { x: equip.pocketDesk.x + equip.pocketDesk.w / 2, y: equip.pocketDesk.y + equip.pocketDesk.h + 40 },
+            lorg: { x: equip.lorgDesk.x + equip.lorgDesk.w / 2, y: equip.lorgDesk.y + equip.lorgDesk.h + 40 },
+            shop: { x: equip.shopDesk.x + equip.shopDesk.w / 2, y: equip.shopDesk.y + equip.shopDesk.h + 40 },
+            slot: { x: equip.slotMachine.x + equip.slotMachine.w / 2, y: equip.slotMachine.y + equip.slotMachine.h + 40 },
+            horg: { x: equip.horgDesk.x + equip.horgDesk.w / 2, y: equip.horgDesk.y + equip.horgDesk.h + 40 },
+            cafeBuild: { x: cafePlot.x + cafePlot.w / 2, y: cafePlot.y + cafePlot.h / 2 },
+            statueBuild: { x: megaProjects.statue.x + megaProjects.statue.w/2, y: megaProjects.statue.y + megaProjects.statue.h/2 },
+            aquaBuild: { x: megaProjects.aquarium.x + megaProjects.aquarium.w/2, y: megaProjects.aquarium.y + megaProjects.aquarium.h/2 },
+            hotelBuild: { x: megaProjects.hotel.x + megaProjects.hotel.w/2, y: megaProjects.hotel.y + megaProjects.hotel.h/2 }
+        };
+
+        let beltOffset = 0; let beltSpeed = 2.5;
+        const citizens = []; 
+        const citizenColors = ['#e84393', '#0984e3', '#6c5ce7', '#fdcb6e', '#d63031', '#00b894'];
+        const shapes = ['circle', 'square'];
+        
+        let scannerOccupied = false; let currentScanningCitizen = null; let luggageState = 'none'; 
+        let passportOccupied = false; let currentPassportCitizen = null;
+        let pocketOccupied = false; let currentPocketCitizen = null;
+
+        const keys = { w: false, a: false, s: false, d: false };
+        let mouseX = 0, mouseY = 0; let activeQZone = null;
+        
+        const bonusRoom = { x: 10000, y: 10000, w: 2000, h: 2000, radius: 750 };
+        let preBonusPos = { x: 0, y: 0 };
+        let bonusCrowd = []; let bonusTarget = null; let activeBonusTargetHover = null;
+        
+        let slideX = -window.innerWidth; let transitionTimer = 0; let pendingGameState = '';
+
+        function updateLevelUI() { uiLevel.innerText = "Station Rank: " + "⭐".repeat(stationLevel); }
+
+        updateMoneyUI(0);
+        updateLevelUI();
+
+        canvas.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+        
+        window.addEventListener('keydown', (e) => { 
+            const k = e.key.toUpperCase(); 
+            const kLow = e.key.toLowerCase();
+            if (keys.hasOwnProperty(kLow)) keys[kLow] = true; 
+            
+            if (gameState === 'hack_screen') {
+                const validKeys = ['W', 'A', 'S', 'D'];
+                if (validKeys.includes(k)) {
+                    if (k === hackTargetCode[hackIndex]) {
+                        typedHack += k + " ";
+                        hackIndex++;
+                        if (hackIndex >= hackTargetCode.length) { 
+                            isHacked = false; updateMoneyUI(1000); gameState = 'playing'; 
+                            hackWarningUI.style.display = 'none'; typedHack = ""; hackIndex = 0;
+                        }
+                    } else { typedHack = ""; hackIndex = 0; }
+                }
+                return;
+            }
+
+if (kLow === 'q') {
+                if (gameState === 'playing' && activeQZone) {
+                    if (activeQZone === 'server' && isHacked) { gameState = 'hack_screen'; typedHack = ""; hackIndex = 0; }
+                    else if (activeQZone === 'detectorFix' && detectorBroken) { detectorBroken = false; updateMoneyUI(100); }
+                    else if (activeQZone === 'slot' && contrabandStock > 0) {
+                        contrabandStock--; let r = Math.random();
+                        if (r < 0.3) { updateMoneyUI(1500); } else if (r < 0.6) { player.speed = 15; setTimeout(()=>player.speed=8, 8000); }
+                    }
+                    else if (activeQZone.startsWith('alarm_')) { let c = citizens.find(cit => cit.id === parseFloat(activeQZone.split('_')[1])); if (c) { c.state = 'walking_to_scanner'; c.bubbleText = "I'm clean!"; updateMoneyUI(50); } }
+                    else if (activeQZone.startsWith('vip_')) { let c = citizens.find(cit => cit.id === parseFloat(activeQZone.split('_')[1])); if (c) { updateMoneyUI(800); c.state = 'walking_out_final'; c.bubbleText = "Excellent VIP service!"; } }
+                    else if (activeQZone.startsWith('inter_')) { let c = citizens.find(cit => cit.id === parseFloat(activeQZone.split('_')[1])); if (c) { updateMoneyUI(Math.floor(Math.random()*1000)+1500); c.state = 'walking_out_final'; c.bubbleText = "Forgive me!"; } }
+                    else if (activeQZone.startsWith('quar_')) { let c = citizens.find(cit => cit.id === parseFloat(activeQZone.split('_')[1])); if (c) { updateMoneyUI(500); c.state = 'walking_out_final'; c.bubbleText = "I'm cured!"; } }
+                    else if (activeQZone === 'cafeBuild') { if (money >= 1000) { updateMoneyUI(-1000); cafeBuilt = true; activeQZone = null; } }
+                    else if (activeQZone === 'statueBuild') { if (money >= megaProjects.statue.price) { updateMoneyUI(-megaProjects.statue.price); megaProjects.statue.built = true; activeQZone = null; stationLevel += 1; updateLevelUI(); } }
+                    else if (activeQZone === 'hotelBuild') { if (money >= megaProjects.hotel.price) { updateMoneyUI(-megaProjects.hotel.price); megaProjects.hotel.built = true; activeQZone = null; stationLevel += 2; updateLevelUI(); } }
+                    else if (activeQZone === 'aquaBuild') { if (money >= megaProjects.aquarium.price) { updateMoneyUI(-megaProjects.aquarium.price); megaProjects.aquarium.built = true; activeQZone = null; stationLevel += 1; updateLevelUI(); } }
+                    else if (activeQZone.startsWith('table_')) { let t = tables[parseInt(activeQZone.split('_')[1])]; if (t.state === 'dirty_money') { updateMoneyUI(t.tipAmount); t.state = 'dirty'; } else if (t.state === 'dirty') t.state = 'empty'; } 
+                    else if (activeQZone === 'xray' && isHacked) { /* Hackliyken açılmaz*/ }
+                    else if (activeQZone === 'passport' && isHacked) { /* Hackliyken açılmaz */ }
+                    else if (['xray', 'passport', 'pocket', 'shop', 'horg', 'lorg'].includes(activeQZone)) {
+                        gameState = activeQZone + '_screen'; 
+                        if (gameState === 'passport_screen' && currentPassportCitizen) currentPassportCitizen.quarantineUnlocked = false;
+                    }
+                } else if (gameState === 'bonus_playing' && activeBonusTargetHover) checkBonusTarget(activeBonusTargetHover);
+            }
+            if (kLow === 'f' && !['playing', 'bonus_playing', 'transition_in', 'transition_wait', 'transition_out', 'hack_screen'].includes(gameState)) gameState = 'playing';
+        });
+        
+        window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false; });
+
+        canvas.addEventListener('click', (e) => {
+            const cx = canvas.width / 2; const cy = canvas.height / 2;
+            
+            // YANKESİCİ (HIRSIZ) YAKALAMA
+            if (gameState === 'playing' && thief.active) {
+                let worldX = player.x + (mouseX - cx);
+                let worldY = player.y + (mouseY - cy);
+                if (Math.hypot(worldX - thief.x, worldY - thief.y) < 50) {
+                    thief.active = false;
+                    updateMoneyUI(500);
+                    const pop = document.createElement('div'); pop.innerText = "YOU'RE CAUGHT!"; pop.style.position = 'absolute'; pop.style.top = mouseY + 'px'; pop.style.left = mouseX + 'px'; pop.style.color = '#fff'; pop.style.fontSize = '24px'; pop.style.fontWeight = 'bold'; document.body.appendChild(pop); setTimeout(()=>pop.remove(), 1000);
+                }
+            }
+
+            if (gameState === 'xray_screen') {
+                if (mouseX > cx - 220 && mouseX < cx - 20 && mouseY > cy + 80 && mouseY < cy + 160) makeXrayDecision(true);  
+                if (mouseX > cx + 20 && mouseX < cx + 220 && mouseY > cy + 80 && mouseY < cy + 160) makeXrayDecision(false); 
+            }
+            else if (gameState === 'passport_screen' && currentPassportCitizen) {
+                let faceX = cx - 180, faceY = cy - 30;
+                if (mouseX > faceX - 60 && mouseX < faceX + 60 && mouseY > faceY - 60 && mouseY < faceY + 60) {
+                    currentPassportCitizen.quarantineUnlocked = true;
+                }
+
+                if (currentPassportCitizen.isBribing) {
+                    if (mouseX > cx - 220 && mouseX < cx - 20 && mouseY > cy + 130 && mouseY < cy + 190) { 
+                        if (Math.random() < 0.3) { 
+                            currentPassportCitizen.bubbleText = "Oh no! Plainclothes cops!"; 
+                            police.active = true; police.x = spawnPoint.x - 500; police.y = spawnPoint.y; police.state = 'approaching'; police.bubbleText = "STIRRING!";
+                        } else { updateMoneyUI(400); currentPassportCitizen.bubbleText = "You're my guy."; }
+                        currentPassportCitizen.isBribing = false; currentPassportCitizen.state = 'walking_to_pockets'; gameState = 'playing'; passportOccupied = false; currentPassportCitizen = null;
+                    }
+                    if (mouseX > cx + 20 && mouseX < cx + 220 && mouseY > cy + 130 && mouseY < cy + 190) { currentPassportCitizen.isBribing = false; currentPassportCitizen.bubbleText = "Oh no!"; }
+                } else {
+                    if (mouseX > cx - 220 && mouseX < cx - 20 && mouseY > cy + 130 && mouseY < cy + 190) makePassportDecision(true);  
+                    
+                    if (mouseX > cx + 20 && mouseX < cx + 220 && mouseY > cy + 130 && mouseY < cy + 190) {
+                        if (currentPassportCitizen.quarantineUnlocked) {
+                            if (currentPassportCitizen.type === 'zombie') {
+                                currentPassportCitizen.state = 'walking_to_quarantine';
+                                currentPassportCitizen.bubbleText = "Finally, treatment...";
+                                handleCombo(true); // Doğru Karantina hamlesi combo sayılır
+                            } else {
+                                updateMoneyUI(-100);
+                                currentPassportCitizen.state = 'walking_out_rej';
+                                currentPassportCitizen.bubbleText = "I'm not sick, you crazy person!";
+                                handleCombo(false);
+                            }
+                            gameState = 'playing'; passportOccupied = false; currentPassportCitizen = null;
+                        } else { makePassportDecision(false); }
+                    } 
+                }
+            }
+            else if (gameState === 'pocket_screen') {
+                if (currentPocketCitizen) {
+                    const items = currentPocketCitizen.pocketItems; const positions = [cx - 150, cx, cx + 150];
+                    for (let i = 0; i < 3; i++) {
+                        if (!items[i].confiscated && Math.hypot(mouseX - positions[i], mouseY - (cy - 30)) < 40) {
+                            if (items[i].isDangerous) { items[i].confiscated = true; updateMoneyUI(50 * currentPocketCitizen.mult); contrabandStock++; }
+                            else { updateMoneyUI(-10 * currentPocketCitizen.mult); currentPocketCitizen.isPerfect = false; }
+                        }
+                    }
+                    if (items.some(i => i.isDangerous && i.confiscated)) {
+                        if (mouseX > cx - 220 && mouseX < cx - 20 && mouseY > cy + 80 && mouseY < cy + 140) { 
+                            currentPocketCitizen.state = 'walking_to_interrogation'; currentPocketCitizen.bubbleText = "What's going on?!";
+                            gameState = 'playing'; pocketOccupied = false; currentPocketCitizen = null; return;
+                        }
+                        if (mouseX > cx + 20 && mouseX < cx + 220 && mouseY > cy + 80 && mouseY < cy + 140) sendPocketCitizen(); 
+                    } else {
+                        if (mouseX > cx - 100 && mouseX < cx + 100 && mouseY > cy + 80 && mouseY < cy + 140) sendPocketCitizen();
+                    }
+                }
+            }
+            else if (gameState === 'shop_screen') {
+                for (let i = 0; i < shopItems.length; i++) { let boxY = cy - 200 + (i * 65); if (mouseX > cx - 200 && mouseX < cx + 200 && mouseY > boxY && mouseY < boxY + 50) buyItem(shopItems, i); }
+                let btnY = cy + 140; if (mouseX > cx - 200 && mouseX < cx + 200 && mouseY > btnY && mouseY < btnY + 40) { if (contrabandStock > 0) { updateMoneyUI(contrabandStock * 300); contrabandStock = 0; } }
+            }
+            else if (gameState === 'horg_screen') {
+                for (let i = 0; i < horgItems.length; i++) { let boxY = cy - 180 + (i * 70); if (mouseX > cx - 200 && mouseX < cx + 200 && mouseY > boxY && mouseY < boxY + 60) buyItem(horgItems, i); }
+            }
+            else if (gameState === 'lorg_screen') {
+                for (let i = 0; i < lorgItems.length; i++) { let boxY = cy - 180 + (i * 70); if (mouseX > cx - 200 && mouseX < cx + 200 && mouseY > boxY && mouseY < boxY + 60) buyItem(lorgItems, i); }
+            }
+        });
+
+        function buyItem(list, index) { let item = list[index]; if (!item.bought && money >= item.price) { updateMoneyUI(-item.price); item.bought = true; if (item.id === 'shoes') player.speed = 12; if (item.id === 'belt') beltSpeed = 5; } }
+
+        function handleCombo(isSuccess) {
+            if (isSuccess) {
+                comboCount++;
+                if (comboCount >= 5) {
+                    feverTimer = 900; // 15 Saniye (60 fps * 15)
+                    comboCount = 0;
+                    feverUI.style.display = 'block';
+                    document.body.style.boxShadow = "inset 0 0 100px #f1c40f";
+                }
+            } else {
+                comboCount = 0;
+            }
+        }
+
+        class Citizen {
+            constructor() {
+                this.x = spawnPoint.x; this.y = spawnPoint.y;
+                this.color = citizenColors[Math.floor(Math.random()*citizenColors.length)];
+                this.shape = shapes[Math.floor(Math.random()*shapes.length)];
+                
+                this.type = 'normal';
+                let r = Math.random();
+                // Zombiler %15'e çıktı
+                if (r < 0.15) this.type = 'zombie';
+                else if (r < 0.25) this.type = 'spy';
+                else if (r < 0.40) this.type = 'diplomat';
+                else if (r < 0.50) this.type = 'galactic_vip';
+
+                if (this.type === 'zombie') this.color = '#1e5128'; 
+                if (this.type === 'diplomat') this.color = '#c0392b';
+
+                this.isVIP = this.type === 'galactic_vip'; 
+                this.mult = this.isVIP ? 5 : 1;
+                this.speed = (2.5 + Math.random()) * (this.isVIP ? 1.5 : 1); 
+                this.radius = 22; this.id = Date.now() + Math.random(); this.state = 'walking_to_scanner'; 
+                this.animFrame = 0; this.bubbleText = null; this.hasLuggageInHand = true; 
+                this.isPerfect = true; this.targetTable = null;
+                this.alarmTriggered = false; this.botTargeted = false; 
+                this.isBribing = (this.type === 'diplomat') ? (Math.random() < 0.8) : (Math.random() < 0.20);
+                this.vipTimer = 0;
+                this.quarantineUnlocked = false;
+                this.infectTimer = 0; // Salgın için
+
+                let luggageItems = [];
+                let shuffledNormal = [...NORMAL_LUGGAGE].sort(() => 0.5 - Math.random());
+                let shuffledDanger = [...DANGER_LUGGAGE].sort(() => 0.5 - Math.random());
+                
+                if (Math.random() < 0.15) { luggageItems.push(shuffledDanger[0], shuffledNormal[0]); } 
+                else { luggageItems.push(shuffledNormal[0], shuffledNormal[1]); }
+                luggageItems.sort(() => 0.5 - Math.random()); 
+                
+                this.luggage = { w: 40, h: 30, color: this.color, items: luggageItems, currentX: 0 };
+                let shuffledPoc = [...POCKET_POOL].sort(() => 0.5 - Math.random());
+                this.pocketItems = shuffledPoc.slice(0, 3).map(item => ({ ...item, confiscated: false }));
+
+                if (Math.random() < 0.30) {
+                    if (Math.random() < 0.5) {
+                        const fakeColors = citizenColors.filter(c => c !== this.color);
+                        this.passportColor = fakeColors[Math.floor(Math.random() * fakeColors.length)]; 
+                        this.passportShape = this.shape; 
+                    } else {
+                        this.passportColor = this.color; 
+                        this.passportShape = this.shape === 'circle' ? 'square' : 'circle'; 
+                    }
+                } else {
+                    this.passportColor = this.color; 
+                    this.passportShape = this.shape; 
+                }
+            }
+        }
+
+        class BonusCitizen {
+            constructor(color, shape, isTarget) {
+                this.x = bonusRoom.x + (Math.random() * 1200 - 600); this.y = bonusRoom.y + (Math.random() * 1200 - 600);
+                this.color = color; this.shape = shape; this.isTarget = isTarget; this.radius = 22; this.animFrame = Math.random() * 10;
+                this.bubbleText = null; this.targetX = this.x; this.targetY = this.y;
+            }
+            update() {
+                this.animFrame += 0.1; let dx = this.targetX - this.x; let dy = this.targetY - this.y; let dist = Math.hypot(dx, dy);
+                if (dist < 5) { let angle = Math.random() * Math.PI * 2; let rad = Math.random() * bonusRoom.radius * 0.9; this.targetX = bonusRoom.x + Math.cos(angle) * rad; this.targetY = bonusRoom.y + Math.sin(angle) * rad;
+                } else { this.x += (dx / dist) * 1.5; this.y += (dy / dist) * 1.5; }
+                let cDist = Math.hypot(this.x - bonusRoom.x, this.y - bonusRoom.y); if(cDist > bonusRoom.radius - 30) { let a = Math.atan2(this.y - bonusRoom.y, this.x - bonusRoom.x); this.x = bonusRoom.x + Math.cos(a) * (bonusRoom.radius - 30); this.y = bonusRoom.y + Math.sin(a) * (bonusRoom.radius - 30); }
+            }
+        }
+
+        function triggerTransition(newState) { slideX = -canvas.width; pendingGameState = newState; gameState = 'transition_in'; }
+        function initBonusLevel() {
+            bonusCrowd = []; let tColor = citizenColors[Math.floor(Math.random() * citizenColors.length)]; let tShape = shapes[Math.floor(Math.random() * shapes.length)]; bonusTarget = { color: tColor, shape: tShape };
+            for (let i = 0; i < 40; i++) { let cColor = citizenColors[Math.floor(Math.random() * citizenColors.length)]; let cShape = shapes[Math.floor(Math.random() * shapes.length)]; if (cColor === tColor && cShape === tShape) cColor = citizenColors.find(c => c !== tColor); bonusCrowd.push(new BonusCitizen(cColor, cShape, false)); }
+            bonusCrowd.push(new BonusCitizen(tColor, tShape, true)); preBonusPos = { x: player.x, y: player.y }; player.x = bonusRoom.x; player.y = bonusRoom.y;
+        }
+        function endBonusLevel() { player.x = preBonusPos.x; player.y = preBonusPos.y; perfectCount = 0; uiPerfect.innerText = `Kusursuz Yolcu: ${perfectCount}/3`; }
+        function checkBonusTarget(bc) { if (bc.isTarget) { bc.bubbleText = "Buldun beni!"; updateMoneyUI(200); setTimeout(() => triggerTransition('playing'), 1000); } else { bc.bubbleText = "Ben değilim!"; setTimeout(() => bc.bubbleText = null, 1500); } }
+
+        function update() {
+            // YANKESİCİ MANTIĞI
+            if (!thief.active) {
+                thiefTimer--;
+                if (thiefTimer <= 0) {
+                    thief.active = true;
+                    thief.x = spawnPoint.x - 500;
+                    thiefTimer = Math.floor(Math.random() * 5000) + 3000;
+                }
+            } else {
+                thief.anim += 0.5;
+                thief.x += thief.speed;
+                if (thief.x > world.width) {
+                    thief.active = false;
+                    updateMoneyUI(-300); // Para Çaldı!
+                    const pop = document.createElement('div'); pop.innerText = "THE THIEF ESCAPED! -300$"; pop.style.position = 'absolute'; pop.style.top = '120px'; pop.style.left = '20px'; pop.style.color = '#ff0000'; pop.style.fontSize = '24px'; pop.style.fontWeight = 'bold'; document.body.appendChild(pop); setTimeout(()=>pop.remove(), 2000);
+                }
+            }
+
+            // FEVER TIMER
+            if (feverTimer > 0) {
+                feverTimer--;
+                if (feverTimer <= 0) {
+                    feverUI.style.display = 'none';
+                    document.body.style.boxShadow = "none";
+                }
+            }
+
+            // OTOMAT PARA ATMA
+            vendingTimer++;
+            if (vendingTimer > 1200) { // Yaklaşık 20 saniye
+                droppedCoins.push({ x: equip.vendingMachine.x + 30, y: equip.vendingMachine.y + 110, value: 10, anim: 0 });
+                vendingTimer = 0;
+            }
+
+            // DEDEKTÖR BOZULMA
+            if (!detectorBroken) {
+                detectorBreakTimer--;
+                if (detectorBreakTimer <= 0) {
+                    detectorBroken = true;
+                    detectorBreakTimer = Math.floor(Math.random() * 8000) + 4000;
+                }
+            }
+
+            if(Math.random() < 0.02) meteors.push({x: Math.random()*5000, y: -100, speedX: -10-Math.random()*10, speedY: 10+Math.random()*10});
+            meteors.forEach(m => { m.x += m.speedX; m.y += m.speedY; });
+            meteors = meteors.filter(m => m.y < world.height);
+
+            passiveIncomeTimer++;
+            if (passiveIncomeTimer > 300) {
+                let income = 0;
+                if (megaProjects.aquarium.built) income += 250;
+                if (lorgItems[0].bought) income += 500;
+                if (lorgItems[1].bought) income += 2500;
+                if (lorgItems[2].bought) income += 10000;
+                if (income > 0) updateMoneyUI(income);
+                passiveIncomeTimer = 0;
+            }
+
+            if (!isHacked) hackTimer--;
+            if (hackTimer <= 0 && gameState === 'playing' && !isHacked) { 
+                isHacked = true; hackIndex = 0; hackWarningUI.style.display = 'block';
+                hackTimer = 150 * 60; // TAM 150 SANİYE SONRA BİR DAHA
+            }
+
+            if (currentPassportCitizen && currentPassportCitizen.type === 'galactic_vip') {
+                currentPassportCitizen.vipTimer = (currentPassportCitizen.vipTimer || 0) + 1;
+                if (currentPassportCitizen.vipTimer > 600 && !isHacked) {
+                    currentPassportCitizen.state = 'walking_out_rej'; currentPassportCitizen.bubbleText = "I FILED A COMPLAINT!";
+                    police.active = true; police.x = spawnPoint.x - 500; police.y = spawnPoint.y; police.state = 'approaching'; police.bubbleText = "YOU MADE THE VIP WAIT!"; updateMoneyUI(-2000);
+                    passportOccupied = false; currentPassportCitizen = null;
+                    handleCombo(false);
+                    if (gameState === 'passport_screen') gameState = 'playing';
+                }
+            }
+
+            if (['transition_in', 'transition_wait', 'transition_out'].includes(gameState)) {
+                if (gameState === 'transition_in') { slideX += 40; if (slideX >= 0) { slideX = 0; gameState = 'transition_wait'; transitionTimer = 0; if (pendingGameState === 'bonus_playing') initBonusLevel(); else if (pendingGameState === 'playing') endBonusLevel(); } } 
+                else if (gameState === 'transition_wait') { transitionTimer++; if (transitionTimer > 60) gameState = 'transition_out'; } 
+                else if (gameState === 'transition_out') { slideX += 40; if (slideX >= canvas.width) gameState = pendingGameState; }
+            }
+            else if (gameState === 'playing') { 
+                updatePlayer(); updateCitizens(); updateBelt(); updateWorkers(); updatePolice(); checkQZones();
+                backgroundStars.forEach(s => { s.x -= s.speed; if(s.x < 0) s.x = 3000; });
+                
+                if(megaProjects.aquarium.built) {
+                    fishes.forEach(f => {
+                        f.x -= f.speed; f.y += Math.sin(Date.now()/300 + f.size)*0.5;
+                        if(f.x < 0) { f.x = 400; f.y = Math.random()*180; }
+                    });
+                }
+
+                if (cafeBuilt && horgItems[3].bought) { arcadeTimer++; if (arcadeTimer > 300) { updateMoneyUI(50); arcadeTimer = 0; } }
+                camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1; camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
+            }
+            else if (gameState === 'bonus_playing') {
+                updatePlayer(); bonusCrowd.forEach(b => b.update()); activeBonusTargetHover = null; interactionUI.style.display = 'none';
+                for (let b of bonusCrowd) { if (Math.hypot(player.x - b.x, player.y - b.y) < 60) { activeBonusTargetHover = b; interactionUI.innerText = "KONTROL ET [Q]"; interactionUI.style.display = 'block'; interactionUI.style.background = "#8e44ad"; break; } }
+                camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1; camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
+            }
+        }
+
+        function updatePlayer() {
+            let dx = 0, dy = 0; if (keys.w) dy -= 1; if (keys.s) dy += 1; if (keys.a) dx -= 1; if (keys.d) dx += 1;
+            if (dx !== 0 && dy !== 0) { const len = Math.sqrt(dx*dx + dy*dy); dx /= len; dy /= len; }
+            player.x += dx * player.speed; player.y += dy * player.speed;
+            if (dx !== 0 || dy !== 0) { player.angle = Math.atan2(dy, dx); player.animFrame += 0.2; } else { player.animFrame = 0; }
+
+            // Yerden para (otomat) toplama
+            for (let i = droppedCoins.length - 1; i >= 0; i--) { 
+                if (Math.hypot(player.x - droppedCoins[i].x, player.y - droppedCoins[i].y) < 30) { 
+                    updateMoneyUI(droppedCoins[i].value); 
+                    droppedCoins.splice(i, 1); 
+                } 
+            }
+        }
+
+        function updatePolice() {
+            if (!police.active) return;
+            police.animFrame += 0.15;
+            if (police.state === 'approaching') {
+                let dx = player.x - police.x; let dy = player.y - police.y; let dist = Math.hypot(dx, dy);
+                if (dist < 60) { police.state = 'fining'; police.timer = 150; police.bubbleText = "A FINE HAS BEEN ISSUED!"; } else { police.x += (dx/dist)*6; police.y += (dy/dist)*6; }
+            } else if (police.state === 'fining') {
+                police.timer--; if (police.timer <= 0) { police.state = 'leaving'; police.bubbleText = "Let’s not let this happen again."; }
+            } else if (police.state === 'leaving') {
+                police.x -= 6; if (police.x < spawnPoint.x - 500) police.active = false;
+            }
+        }
+
+        function updateWorkers() {
+            if (cafeBuilt) {
+                if (horgItems[0].bought) { let w = workers.collector; w.animFrame = (w.animFrame || 0) + 0.2; if (!w.target || w.target.state !== 'dirty_money') { w.target = tables.find(t => t.state === 'dirty_money' && !t.wTarget); if (w.target) w.target.wTarget = true; } if (w.target) { let dist = Math.hypot(w.target.x - w.x, w.target.y - w.y); if (dist < 10) { w.actionTimer++; if (w.actionTimer > 30) { updateMoneyUI(w.target.tipAmount); w.target.state = 'dirty'; w.target.wTarget = false; w.target = null; w.actionTimer = 0; } } else { w.x += ((w.target.x - w.x)/dist) * w.speed; w.y += ((w.target.y - w.y)/dist) * w.speed; w.angle = Math.atan2(w.target.y - w.y, w.target.x - w.x); } } else { let ix = cafePlot.x + 100, iy = cafePlot.y + 100; if (Math.hypot(ix - w.x, iy - w.y) > 5) { w.x += (ix-w.x)*0.05; w.y += (iy-w.y)*0.05; w.angle = Math.atan2(iy - w.y, ix - w.x); } } }
+                if (horgItems[1].bought) { let w = workers.cleaner; w.animFrame = (w.animFrame || 0) + 0.2; if (!w.target || w.target.state !== 'dirty') { w.target = tables.find(t => t.state === 'dirty' && !t.wTarget); if (w.target) w.target.wTarget = true; } if (w.target) { let dist = Math.hypot(w.target.x - w.x, w.target.y - w.y); if (dist < 10) { w.actionTimer++; if (w.actionTimer > 60) { w.target.state = 'empty'; w.target.wTarget = false; w.target = null; w.actionTimer = 0; } } else { w.x += ((w.target.x - w.x)/dist) * w.speed; w.y += ((w.target.y - w.y)/dist) * w.speed; w.angle = Math.atan2(w.target.y - w.y, w.target.x - w.x); } } else { let ix = cafePlot.x + cafePlot.w - 100, iy = cafePlot.y + 100; if (Math.hypot(ix - w.x, iy - w.y) > 5) { w.x += (ix-w.x)*0.05; w.y += (iy-w.y)*0.05; w.angle = Math.atan2(iy - w.y, ix - w.x); } } }
+            }
+            if (horgItems[4].bought) { 
+                let w = workers.securityBot; w.animFrame = (w.animFrame || 0) + 0.5;
+                if (!w.target || w.target.state !== 'frozen_alarm') { w.target = citizens.find(c => c.state === 'frozen_alarm' && !c.botTargeted); if (w.target) w.target.botTargeted = true; }
+                if (w.target) { let dist = Math.hypot(w.target.x - w.x, w.target.y - w.y); if (dist < 20) { w.actionTimer++; if (w.actionTimer > 30) { updateMoneyUI(50); w.target.state = 'walking_to_scanner'; w.target.bubbleText = "Bot beni taradı!"; w.target.botTargeted = false; w.target = null; w.actionTimer = 0; } } else { w.x += ((w.target.x - w.x)/dist) * w.speed; w.y += ((w.target.y - w.y)/dist) * w.speed; w.angle = Math.atan2(w.target.y - w.y, w.target.x - w.x); } } else { let ix = equip.detector.x + 40, iy = equip.detector.y - 150; if (Math.hypot(ix - w.x, iy - w.y) > 5) { w.x += (ix-w.x)*0.05; w.y += (iy-w.y)*0.05; w.angle = Math.atan2(iy - w.y, ix - w.x); } }
+            }
+        }
+
+        function checkQZones() {
+            activeQZone = null;
+            let alarmedCit = citizens.find(c => c.state === 'frozen_alarm' && !c.botTargeted && Math.hypot(player.x - c.x, player.y - c.y) < 80);
+            let vipCitizen = citizens.find(c => c.state === 'waiting_in_vip_lounge' && Math.hypot(player.x - c.x, player.y - c.y) < 100);
+            let interCitizen = citizens.find(c => c.state === 'waiting_in_interrogation' && Math.hypot(player.x - c.x, player.y - c.y) < 100);
+            let quarCitizen = citizens.find(c => c.state === 'waiting_in_quarantine' && Math.hypot(player.x - c.x, player.y - c.y) < 100);
+
+            if (isHacked && Math.hypot(player.x - qZones.server.x, player.y - qZones.server.y) < 80) activeQZone = 'server';
+            else if (detectorBroken && Math.hypot(player.x - qZones.detectorFix.x, player.y - qZones.detectorFix.y) < 80) activeQZone = 'detectorFix';
+            else if (quarCitizen) activeQZone = 'quar_' + quarCitizen.id;
+            else if (interCitizen) activeQZone = 'inter_' + interCitizen.id;
+            else if (vipCitizen) activeQZone = 'vip_' + vipCitizen.id;
+            else if (alarmedCit) activeQZone = 'alarm_' + alarmedCit.id;
+            else if (Math.hypot(player.x - qZones.scanner.x, player.y - qZones.scanner.y) < 80 && luggageState === 'waiting' && !isHacked) activeQZone = 'xray';
+            else if (Math.hypot(player.x - qZones.passport.x, player.y - qZones.passport.y) < 80 && currentPassportCitizen && !isHacked) activeQZone = 'passport';
+            else if (Math.hypot(player.x - qZones.pocket.x, player.y - qZones.pocket.y) < 80 && currentPocketCitizen) activeQZone = 'pocket';
+            else if (Math.hypot(player.x - qZones.shop.x, player.y - qZones.shop.y) < 80) activeQZone = 'shop';
+            else if (Math.hypot(player.x - qZones.horg.x, player.y - qZones.horg.y) < 80) activeQZone = 'horg';
+            else if (Math.hypot(player.x - qZones.lorg.x, player.y - qZones.lorg.y) < 80) activeQZone = 'lorg';
+            else if (Math.hypot(player.x - qZones.slot.x, player.y - qZones.slot.y) < 80) activeQZone = 'slot';
+            else if (!cafeBuilt && Math.hypot(player.x - qZones.cafeBuild.x, player.y - qZones.cafeBuild.y) < 150) activeQZone = 'cafeBuild';
+            else if (!megaProjects.statue.built && Math.hypot(player.x - qZones.statueBuild.x, player.y - qZones.statueBuild.y) < 150) activeQZone = 'statueBuild';
+            else if (!megaProjects.aquarium.built && Math.hypot(player.x - qZones.aquaBuild.x, player.y - qZones.aquaBuild.y) < 150) activeQZone = 'aquaBuild';
+            else if (!megaProjects.hotel.built && Math.hypot(player.x - qZones.hotelBuild.x, player.y - qZones.hotelBuild.y) < 150) activeQZone = 'hotelBuild';
+            else if (cafeBuilt) { let nearT = tables.find(t => Math.hypot(player.x - t.x, player.y - t.y) < 60 && (t.state === 'dirty_money' || t.state === 'dirty')); if (nearT) activeQZone = 'table_' + nearT.id; }
+
+           if (activeQZone) {
+                interactionUI.style.display = 'block';
+                if (activeQZone === 'server') { interactionUI.innerText = "FIX THE SYSTEM [Q]"; interactionUI.style.background = "#ff0000"; }
+                else if (activeQZone === 'detectorFix') { interactionUI.innerText = "REPAIR DETECTOR [Q]"; interactionUI.style.background = "#e74c3c"; }
+                else if (activeQZone === 'slot') { interactionUI.innerText = `PLAY SLOT [Q] (Stock: ${contrabandStock})`; interactionUI.style.background = "#e67e22"; }
+                else if (activeQZone.startsWith('inter_')) { interactionUI.innerText = "INTERROGATE AND COLLECT MONEY [Q]"; interactionUI.style.background = "#c0392b"; }
+                else if (activeQZone.startsWith('quar_')) { interactionUI.innerText = "TREAT [Q] (+500$)"; interactionUI.style.background = "#2ecc71"; interactionUI.style.color = "#fff"; }
+                else if (activeQZone.startsWith('vip_')) { interactionUI.innerText = "SERVE CHAMPAGNE [Q]"; interactionUI.style.background = "#f1c40f"; interactionUI.style.color = "#000"; }
+                else if (activeQZone.startsWith('alarm_')) { interactionUI.innerText = "BODY SEARCH [Q]"; interactionUI.style.background = "#e74c3c"; }
+                else if (activeQZone === 'xray') { interactionUI.innerText = "X-RAY [Q]"; interactionUI.style.background = "#2ecc71"; }
+                else if (activeQZone === 'passport') { interactionUI.innerText = "PASSPORT [Q]"; interactionUI.style.background = "#9b59b6"; }
+                else if (activeQZone === 'pocket') { interactionUI.innerText = "POCKETS [Q]"; interactionUI.style.background = "#e67e22"; }
+                else if (activeQZone === 'shop') { interactionUI.innerText = "ENTER ZORG [Q]"; interactionUI.style.background = "#e84393"; }
+                else if (activeQZone === 'horg') { interactionUI.innerText = "ENTER HORG [Q]"; interactionUI.style.background = "#d35400"; }
+                else if (activeQZone === 'lorg') { interactionUI.innerText = "ENTER LORG (REAL ESTATE) [Q]"; interactionUI.style.background = "#2980b9"; }
+                else if (activeQZone === 'cafeBuild') { interactionUI.innerText = money >= 1000 ? "BUILD CAFE [Q] (1000$)" : "NEED 1000$ FOR CAFE"; interactionUI.style.background = money >= 1000 ? "#27ae60" : "#7f8c8d"; }
+                else if (activeQZone === 'statueBuild') { interactionUI.innerText = money >= megaProjects.statue.price ? `BUILD STATUE [Q] (${megaProjects.statue.price}$)` : `NEED ${megaProjects.statue.price}$ FOR STATUE`; interactionUI.style.background = money >= megaProjects.statue.price ? "#f1c40f" : "#7f8c8d"; interactionUI.style.color = "#000"; }
+                else if (activeQZone === 'aquaBuild') { interactionUI.innerText = money >= megaProjects.aquarium.price ? `BUILD AQUARIUM [Q] (${megaProjects.aquarium.price}$)` : `NEED ${megaProjects.aquarium.price}$ FOR AQUARIUM`; interactionUI.style.background = money >= megaProjects.aquarium.price ? "#0984e3" : "#7f8c8d"; interactionUI.style.color = "#fff"; }
+                else if (activeQZone === 'hotelBuild') { interactionUI.innerText = money >= megaProjects.hotel.price ? `BUILD HOTEL [Q] (${megaProjects.hotel.price}$)` : `NEED ${megaProjects.hotel.price}$ FOR HOTEL`; interactionUI.style.background = money >= megaProjects.hotel.price ? "#9b59b6" : "#7f8c8d"; }
+                else if (activeQZone.startsWith('table_')) { let st = tables[parseInt(activeQZone.split('_')[1])].state; interactionUI.innerText = st === 'dirty_money' ? "COLLECT MONEY [Q]" : "CLEAN TABLE [Q]"; interactionUI.style.background = st === 'dirty_money' ? "#f1c40f" : "#3498db"; interactionUI.style.color = st === 'dirty_money' ? "#000" : "#fff"; }
+            } else interactionUI.style.display = 'none';
+        }
+
+        function updateCitizens() {
+            const stopScannerX = equip.detector.x - 20; const stopPassportX = equip.passportDesk.x - 40; const stopPocketX = equip.pocketDesk.x - 40;
+            citizens.forEach((c) => {
+                c.animFrame += 0.1;
+                
+                // SALGIN ZOMBİ Bulaşma Mantığı
+                if (c.type === 'zombie' && ['walking_to_scanner', 'waiting_in_scanner_queue'].includes(c.state)) {
+                    for (let other of citizens) {
+                        if (other !== c && other.type === 'normal' && Math.abs(c.x - other.x) < 80) {
+                            other.infectTimer = (other.infectTimer || 0) + 1;
+                            if (other.infectTimer > 180) { // 3 saniye yan yana iseler
+                                other.type = 'zombie';
+                                other.color = '#1e5128';
+                                other.bubbleText = "Achoo! I caught it!";
+                            }
+                        }
+                    }
+                }
+
+                // Dedektör Bozuksa herkes öter
+                if (detectorBroken && !c.alarmTriggered && c.x > equip.detector.x && c.x < equip.detector.x + 20) {
+                    c.alarmTriggered = true;
+                    c.state = 'frozen_alarm'; c.bubbleText = "Broken machine!!";
+                } else if (!c.alarmTriggered && c.x > equip.detector.x && c.x < equip.detector.x + 20) { 
+                    c.alarmTriggered = true; if (Math.random() < 0.2) { c.state = 'frozen_alarm'; c.bubbleText = "BİİP! BİİP!"; } 
+                }
+                
+                if (c.state === 'frozen_alarm') return;
+
+                if (['walking_to_scanner', 'waiting_in_scanner_queue'].includes(c.state)) {
+                    if (checkForwardClear(c, ['walking_to_scanner', 'waiting_in_scanner_queue', 'scanning', 'frozen_alarm'])) { c.x += c.speed; c.state = 'walking_to_scanner'; } else c.state = 'waiting_in_scanner_queue';
+                    if (c.x >= stopScannerX) { 
+                        c.x = stopScannerX; 
+                        if (!scannerOccupied) { 
+                            c.state = 'scanning'; scannerOccupied = true; c.hasLuggageInHand = false; 
+                            currentScanningCitizen = c; 
+                            if(c.type === 'diplomat') {
+                                c.bubbleText = "I'm a diplomat. You can't call me!";
+                                setTimeout(() => { c.state = 'walking_to_passport'; c.hasLuggageInHand = true; finishScanning(); }, 1500);
+                            } else {
+                                c.bubbleText = "Please come in."; c.luggage.currentX = equip.belt.x - 20; luggageState = 'moving_in'; 
+                            }
+                        } 
+                    }
+                }
+                else if (['walking_to_passport', 'waiting_in_passport_queue'].includes(c.state)) {
+                    if (checkForwardClear(c, ['walking_to_passport', 'waiting_in_passport_queue', 'at_passport'])) { c.x += c.speed; c.state = 'walking_to_passport'; } else c.state = 'waiting_in_passport_queue';
+                    if (c.x >= stopPassportX) { c.x = stopPassportX; if (!passportOccupied) { c.state = 'at_passport'; passportOccupied = true; currentPassportCitizen = c; c.bubbleText = "My passport."; } }
+                }
+                else if (['walking_to_pockets', 'waiting_in_pockets_queue'].includes(c.state)) {
+                    if (checkForwardClear(c, ['walking_to_pockets', 'waiting_in_pockets_queue', 'at_pockets'])) { c.x += c.speed; c.state = 'walking_to_pockets'; } else c.state = 'waiting_in_pockets_queue';
+                    if (c.x >= stopPocketX) { c.x = stopPocketX; if (!pocketOccupied) { c.state = 'at_pockets'; pocketOccupied = true; currentPocketCitizen = c; c.bubbleText = "Take my pockets."; } }
+                }
+                else if (c.state === 'walking_to_vip_lounge') {
+                    let dx = (vipPlot.x + vipPlot.w/2) - c.x; let dy = (vipPlot.y + vipPlot.h/2) - c.y; let dist = Math.hypot(dx, dy);
+                    if (dist < 5) { c.state = 'waiting_in_vip_lounge'; c.bubbleText = "I am waiting for service."; } else { c.x += (dx/dist)*c.speed; c.y += (dy/dist)*c.speed; }
+                }
+                else if (c.state === 'walking_to_interrogation') {
+                    let dx = (interPlot.x + interPlot.w/2) - c.x; let dy = (interPlot.y + interPlot.h/2) - c.y; let dist = Math.hypot(dx, dy);
+                    if (dist < 5) { c.state = 'waiting_in_interrogation'; c.bubbleText = "Please let me go!"; } else { c.x += (dx/dist)*c.speed; c.y += (dy/dist)*c.speed; }
+                }
+                else if (c.state === 'walking_to_quarantine') {
+                    let dx = (quarantinePlot.x + quarantinePlot.w/2) - c.x; let dy = (quarantinePlot.y + quarantinePlot.h/2) - c.y; let dist = Math.hypot(dx, dy);
+                    if (dist < 5) { c.state = 'waiting_in_quarantine'; c.bubbleText = "Heal me!"; } else { c.x += (dx/dist)*c.speed; c.y += (dy/dist)*c.speed; }
+                }
+                else if (c.state === 'walking_to_cafe') {
+                    let dx = c.targetTable.x - c.x; let dy = c.targetTable.y - c.y; let dist = Math.hypot(dx, dy);
+                    if (dist < 5) { c.state = 'drinking'; c.targetTable.state = 'occupied'; c.targetTable.timer = horgItems[2].bought ? 150 : 300; c.bubbleText = "☕ Hüüüp..."; } else { c.x += (dx/dist)*c.speed; c.y += (dy/dist)*c.speed; }
+                }
+                else if (c.state === 'drinking') { c.targetTable.timer--; if (c.targetTable.timer <= 0) { c.targetTable.state = 'dirty_money'; c.targetTable.tipAmount = 50; c.state = 'walking_out_final'; c.bubbleText = "Great coffee!"; } }
+                else if (c.state === 'walking_to_hotel') {
+                    let dx = c.targetX - c.x; let dy = c.targetY - c.y; let dist = Math.hypot(dx, dy);
+                    if (dist < 5) { c.state = 'walking_out_final'; } else { c.x += (dx/dist)*c.speed; c.y += (dy/dist)*c.speed; }
+                }
+                else if (c.state === 'walking_out_final') { c.x += c.speed; if (c.x > world.width/2 + 1500) removeCitizen(c); }
+                else if (c.state === 'walking_out_rej') { c.x -= c.speed; c.y += c.speed * 0.2; if (c.x < spawnPoint.x - 100) removeCitizen(c); }
+            });
+        }
+
+        function checkForwardClear(c, statesToCheck) { for (let other of citizens) { if (other !== c && other.x > c.x && (other.x - c.x) < 75 && statesToCheck.includes(other.state)) return false; } return true; }
+
+        function updateBelt() {
+            if (isHacked) return; 
+            if (!currentScanningCitizen || currentScanningCitizen.type === 'diplomat') return; 
+            const lug = currentScanningCitizen.luggage; const targetScanX = equip.scanner.x + equip.scanner.w / 2 - lug.w / 2;
+            if (luggageState === 'moving_in') { lug.currentX += beltSpeed; beltOffset += beltSpeed * 0.8; if (lug.currentX >= targetScanX) { lug.currentX = targetScanX; luggageState = 'waiting'; } }
+            else if (luggageState === 'moving_out_acc') { lug.currentX += beltSpeed; beltOffset += beltSpeed * 0.8; if (lug.currentX > equip.belt.x + equip.belt.w) { currentScanningCitizen.state = 'walking_to_passport'; currentScanningCitizen.hasLuggageInHand = true; currentScanningCitizen.bubbleText = "I'm passing by."; finishScanning(); } }
+            else if (luggageState === 'moving_out_rej') { lug.currentX -= beltSpeed; beltOffset -= beltSpeed * 0.8; if (lug.currentX < equip.belt.x - 20) { currentScanningCitizen.state = 'walking_out_rej'; currentScanningCitizen.hasLuggageInHand = true; currentScanningCitizen.bubbleText = "Come on..."; finishScanning(); } }
+            if (beltOffset > 20 || beltOffset < -20) beltOffset = 0;
+        }
+
+        function finishScanning() { setTimeout(() => { if(currentScanningCitizen) currentScanningCitizen.bubbleText = null; }, 2000); scannerOccupied = false; currentScanningCitizen = null; luggageState = 'none'; interactionUI.style.display = 'none'; }
+
+        function makeXrayDecision(isApproved) {
+            if (!currentScanningCitizen || luggageState !== 'waiting') return; const hasDanger = currentScanningCitizen.luggage.items.some(i => DANGEROUS.includes(i.icon));
+            if (isApproved) { 
+                if (hasDanger) { updateMoneyUI(-100 * currentScanningCitizen.mult); currentScanningCitizen.isPerfect = false; handleCombo(false); } 
+                else { updateMoneyUI(50 * currentScanningCitizen.mult); handleCombo(true); } 
+                luggageState = 'moving_out_acc'; 
+            } else { 
+                if (hasDanger) { updateMoneyUI(50 * currentScanningCitizen.mult); contrabandStock++; handleCombo(true); } 
+                else { updateMoneyUI(-20 * currentScanningCitizen.mult); currentScanningCitizen.isPerfect = false; handleCombo(false); } 
+                luggageState = 'moving_out_rej'; 
+            }
+            gameState = 'playing';
+        }
+
+function makePassportDecision(isApproved) {
+            if (!currentPassportCitizen) return; 
+            const isMatch = (currentPassportCitizen.color === currentPassportCitizen.passportColor && currentPassportCitizen.shape === currentPassportCitizen.passportShape);
+            
+            if (isApproved) {
+                if (!isMatch) { updateMoneyUI(-200 * currentPassportCitizen.mult); currentPassportCitizen.isPerfect = false; handleCombo(false); } 
+                else { if (currentPassportCitizen.type === 'galactic_vip') updateMoneyUI(1000); else updateMoneyUI(50 * currentPassportCitizen.mult); handleCombo(true); } 
+                currentPassportCitizen.state = 'walking_to_pockets'; currentPassportCitizen.bubbleText = "Are my pockets on the right?";
+            } else {
+                if (isMatch) { updateMoneyUI(-50 * currentPassportCitizen.mult); currentPassportCitizen.isPerfect = false; handleCombo(false); } 
+                else { updateMoneyUI(100 * currentPassportCitizen.mult); handleCombo(true); } 
+                currentPassportCitizen.state = 'walking_out_rej'; currentPassportCitizen.bubbleText = "I'm going back...";
+            }
+            gameState = 'playing'; setTimeout(() => { if(currentPassportCitizen) currentPassportCitizen.bubbleText = null; }, 2000); passportOccupied = false; currentPassportCitizen = null;
+        }
+
+        function sendPocketCitizen() {
+            if (!currentPocketCitizen) return; let missedDanger = currentPocketCitizen.pocketItems.some(i => i.isDangerous && !i.confiscated);
+            if (missedDanger) { updateMoneyUI(-100 * currentPocketCitizen.mult); currentPocketCitizen.isPerfect = false; currentPocketCitizen.bubbleText = "Suckers!"; currentPocketCitizen.state = 'walking_out_final'; handleCombo(false); } 
+            else { 
+                let extra = 50; updateMoneyUI(extra * currentPocketCitizen.mult); handleCombo(true);
+                if (currentPocketCitizen.isPerfect) { perfectCount++; uiPerfect.innerText = `Perfect Passenger: ${perfectCount}/3`; if (perfectCount >= 3) setTimeout(() => triggerTransition('bonus_playing'), 1000); }
+                
+                if (currentPocketCitizen.isVIP && currentPocketCitizen.isPerfect) { currentPocketCitizen.state = 'walking_to_vip_lounge'; currentPocketCitizen.bubbleText = "Heading to the VIP lounge."; }
+                else if (megaProjects.hotel.built && Math.random() < 0.4) { currentPocketCitizen.state = 'walking_to_hotel'; currentPocketCitizen.targetX = megaProjects.hotel.x + 300; currentPocketCitizen.targetY = megaProjects.hotel.y + 400; currentPocketCitizen.bubbleText = "The hotel looks great!"; }
+                else if (cafeBuilt && Math.random() < 0.6) {
+                    let emp = tables.find(t => t.state === 'empty');
+                    if (emp) { emp.state = 'reserved'; currentPocketCitizen.targetTable = emp; currentPocketCitizen.state = 'walking_to_cafe'; currentPocketCitizen.bubbleText = "Let's grab a coffee."; }
+                    else { currentPocketCitizen.state = 'walking_out_final'; currentPocketCitizen.bubbleText = "Goodbye."; }
+                } else { currentPocketCitizen.state = 'walking_out_final'; currentPocketCitizen.bubbleText = "Goodbye."; }
+            }
+            gameState = 'playing'; setTimeout(() => { if(currentPocketCitizen && !['walking_to_cafe', 'drinking', 'walking_to_vip_lounge', 'walking_to_interrogation', 'walking_to_quarantine'].includes(currentPocketCitizen.state)) currentPocketCitizen.bubbleText = null; }, 2000); pocketOccupied = false; currentPocketCitizen = null;
+        }
+		
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameState === 'hack_screen') {
+                ctx.fillStyle = 'rgba(0, 30, 0, 1)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = '#0f0'; ctx.font = 'bold 50px Courier New'; ctx.textAlign = 'center';
+                ctx.fillText("CYBER ATTACK DETECTED!", canvas.width/2, canvas.height/2 - 150);
+                ctx.font = '30px Courier New'; ctx.fillText("TYPE IN ORDER TO FIX:", canvas.width/2, canvas.height/2 - 80);
+                ctx.font = '70px Courier New'; ctx.fillText("W - A - S - D", canvas.width/2, canvas.height/2);
+				
+                ctx.fillStyle = '#fff'; ctx.fillRect(canvas.width/2 - 200, canvas.height/2 + 50, 400, 80);
+                ctx.strokeStyle = '#0f0'; ctx.lineWidth = 5; ctx.strokeRect(canvas.width/2 - 200, canvas.height/2 + 50, 400, 80);
+                
+                ctx.fillStyle = '#000'; ctx.font = 'bold 50px Courier New';
+                ctx.fillText(typedHack, canvas.width/2, canvas.height/2 + 110);
+                return;
+            }
+
+            if (gameState === 'bonus_playing' || pendingGameState === 'bonus_playing') drawBonusBackground(); else drawDetailedBackground();
+
+            ctx.save(); ctx.translate(-camera.x, -camera.y);
+            
+            if (gameState === 'bonus_playing') { drawBonusEnvironment(); bonusCrowd.forEach(b => drawCitizenShape(b)); drawDetailedPlayer(); } 
+            else {
+                drawEnvironment(); citizens.forEach(drawCitizen); 
+                
+                // Yankesiciyi Çiz
+                if (thief.active) {
+                    ctx.save(); ctx.translate(thief.x, thief.y);
+                    const sw = Math.sin(thief.anim)*15;
+                    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(0,0, 20, 25, 0, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#000'; ctx.fillRect(-10, -25, 20, 15); 
+                    ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(5, -20, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#e67e22'; ctx.fillRect(5, -5, 25, 15); // Para Çantası
+                    ctx.restore();
+                }
+
+                if (cafeBuilt) { if(horgItems[0].bought) drawWorker(workers.collector, '#f1c40f'); if(horgItems[1].bought) drawWorker(workers.cleaner, '#3498db'); }
+                if(horgItems[4].bought) drawWorker(workers.securityBot, '#e74c3c');
+                drawDetailedPlayer(); drawDetectorArch();
+                if (police.active) drawPoliceNPC();
+            }
+            ctx.restore();
+            
+            if (gameState === 'xray_screen') drawXrayUI();
+            if (gameState === 'passport_screen') drawPassportUI();
+            if (gameState === 'pocket_screen') drawPocketUI();
+            if (gameState === 'shop_screen') drawShopUI();
+            if (gameState === 'horg_screen') drawHorgUI();
+            if (gameState === 'lorg_screen') drawLorgUI();
+            if (gameState === 'bonus_playing' && bonusTarget) drawBonusUI();
+
+            if (['transition_in', 'transition_wait', 'transition_out'].includes(gameState)) {
+                ctx.fillStyle = '#f1c40f'; ctx.fillRect(slideX, 0, canvas.width, canvas.height); ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 50px Arial'; ctx.textAlign = 'center'; ctx.fillText("GİZLİ BÖLÜM", slideX + canvas.width/2, canvas.height/2);
+            }
+        }
+
+        function drawBonusBackground() { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+        function drawBonusEnvironment() {
+            ctx.fillStyle = '#222f3e'; ctx.beginPath(); ctx.arc(bonusRoom.x, bonusRoom.y, bonusRoom.radius, 0, Math.PI*2); ctx.fill(); 
+            ctx.save(); ctx.clip(); ctx.strokeStyle = '#324254'; ctx.lineWidth = 2; const gridSize = 100; ctx.beginPath(); for (let x = bonusRoom.x - bonusRoom.radius; x < bonusRoom.x + bonusRoom.radius; x += gridSize) { ctx.moveTo(x, bonusRoom.y - bonusRoom.radius); ctx.lineTo(x, bonusRoom.y + bonusRoom.radius); } for (let y = bonusRoom.y - bonusRoom.radius; y < bonusRoom.y + bonusRoom.radius; y += gridSize) { ctx.moveTo(bonusRoom.x - bonusRoom.radius, y); ctx.lineTo(bonusRoom.x + bonusRoom.radius, y); } ctx.stroke(); ctx.restore();
+            ctx.beginPath(); ctx.arc(bonusRoom.x, bonusRoom.y, bonusRoom.radius, 0, Math.PI*2); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 20; ctx.stroke();
+        }
+
+        function drawDetailedBackground() {
+            ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            ctx.strokeStyle = '#16213e'; ctx.lineWidth = 4; const gridSize = 100; const offsetX = -camera.x % gridSize; const offsetY = -camera.y % gridSize; 
+            ctx.beginPath(); for (let x = offsetX; x < canvas.width; x += gridSize) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); } for (let y = offsetY; y < canvas.height; y += gridSize) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); } ctx.stroke();
+
+            let winX = 500 - camera.x*0.5; let winY = CY - 500 - camera.y*0.5;
+            ctx.fillStyle = '#050510'; ctx.fillRect(winX, winY, 2000, 300); 
+            ctx.save(); ctx.beginPath(); ctx.rect(winX, winY, 2000, 300); ctx.clip();
+            ctx.fillStyle = '#fff'; backgroundStars.forEach(s => { ctx.beginPath(); ctx.arc(winX + s.x, winY + s.y, s.size, 0, Math.PI*2); ctx.fill(); });
+            
+            meteors.forEach(m => { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(winX + m.x, winY + m.y); ctx.lineTo(winX + m.x - m.speedX*3, winY + m.y - m.speedY*3); ctx.stroke(); });
+
+            ctx.restore();
+            ctx.strokeStyle = '#485460'; ctx.lineWidth = 15; ctx.strokeRect(winX, winY, 2000, 300); 
+            for(let i=1; i<4; i++) { ctx.fillRect(winX + i*500, winY, 15, 300); } 
+        }
+
+        function drawDecorations() {
+            let holoX = equip.pocketDesk.x + 350; let holoY = CY - 180;
+            ctx.fillStyle = 'rgba(0, 255, 204, 0.15)'; ctx.beginPath(); ctx.moveTo(holoX, holoY); ctx.lineTo(holoX - 30, holoY - 60); ctx.lineTo(holoX + 30, holoY - 60); ctx.fill();
+            ctx.fillStyle = '#00ffcc'; ctx.font = '22px Arial'; ctx.textAlign = 'center'; ctx.fillText('🪐 GALAKSİ', holoX, holoY - 70 + Math.sin(Date.now()/200)*6); ctx.fillStyle = '#34495e'; ctx.fillRect(holoX - 15, holoY, 30, 10);
+
+            ctx.fillStyle = '#34495e';
+            for(let i=0; i<3; i++) { let bx = equip.detector.x - 300 + i*180; let by = equip.detector.y + 180; ctx.fillRect(bx, by, 100, 30); ctx.fillStyle = '#2c3e50'; ctx.fillRect(bx + 10, by + 10, 80, 10); ctx.fillStyle = '#34495e'; }
+
+            let plants = [{x: equip.passportDesk.x - 80, y: equip.passportDesk.y + 160}, {x: equip.shopDesk.x - 60, y: equip.shopDesk.y + 60}, {x: interPlot.x - 50, y: interPlot.y + 120}];
+            plants.forEach(p => { ctx.fillStyle = '#95a5a6'; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x+40, p.y); ctx.lineTo(p.x+30, p.y+35); ctx.lineTo(p.x+10, p.y+35); ctx.fill(); ctx.fillStyle = '#1abc9c'; ctx.beginPath(); ctx.arc(p.x + 20, p.y - 10, 22, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#16a085'; ctx.beginPath(); ctx.arc(p.x + 8, p.y - 15, 12, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(p.x + 32, p.y - 5, 15, 0, Math.PI*2); ctx.fill(); });
+
+            ctx.fillStyle = '#2c3e50'; ctx.fillRect(equip.passportDesk.x, equip.passportDesk.y - 150, 100, 80);
+            ctx.fillStyle = (Math.floor(Date.now()/500)%3 === 0) ? '#00ffcc' : (Math.floor(Date.now()/500)%3 === 1 ? '#e84393' : '#f1c40f');
+            ctx.font = 'bold 16px Arial'; ctx.textAlign='center'; ctx.fillText("WELCOME", equip.passportDesk.x+50, equip.passportDesk.y-100);
+        }
+
+        function drawEnvironment() {
+            drawDecorations(); 
+
+            // UZAYLI ALTIN HEYKEL
+            if (!megaProjects.statue.built) { drawPlot(megaProjects.statue, "CONSTRUCTION OF A GOLDEN STATUE", megaProjects.statue.price + "$", qZones.statueBuild, activeQZone === 'statueBuild'); } 
+            else { 
+                ctx.fillStyle = 'rgba(241, 196, 15, 0.15)'; ctx.beginPath(); ctx.arc(megaProjects.statue.x+150, megaProjects.statue.y+150, 180, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#d4af37'; ctx.fillRect(megaProjects.statue.x + 80, megaProjects.statue.y + 200, 140, 60); 
+                let gr = ctx.createLinearGradient(megaProjects.statue.x, megaProjects.statue.y, megaProjects.statue.x+200, megaProjects.statue.y); gr.addColorStop(0,'#f1c40f'); gr.addColorStop(1,'#d4af37'); ctx.fillStyle = gr;
+                
+                ctx.beginPath(); ctx.ellipse(megaProjects.statue.x+150, megaProjects.statue.y+150, 40, 50, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(megaProjects.statue.x+150, megaProjects.statue.y+70, 60, 45, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#111';
+                ctx.beginPath(); ctx.ellipse(megaProjects.statue.x+125, megaProjects.statue.y+70, 12, 25, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(megaProjects.statue.x+175, megaProjects.statue.y+70, 12, 25, Math.PI/6, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(megaProjects.statue.x+130, megaProjects.statue.y+35); ctx.lineTo(megaProjects.statue.x+110, megaProjects.statue.y+10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(megaProjects.statue.x+170, megaProjects.statue.y+35); ctx.lineTo(megaProjects.statue.x+190, megaProjects.statue.y+10); ctx.stroke();
+                ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(megaProjects.statue.x+110, megaProjects.statue.y+10, 6, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(megaProjects.statue.x+190, megaProjects.statue.y+10, 6, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.font='bold 22px Arial'; ctx.textAlign='center'; ctx.fillText("RANK: ⭐" + stationLevel, megaProjects.statue.x+150, megaProjects.statue.y+240);
+            }
+
+            // UZAY AKVARYUMU
+          if (!megaProjects.aquarium.built) { drawPlot(megaProjects.aquarium, "AQUARIUM CONSTRUCTION", megaProjects.aquarium.price + "$", qZones.aquaBuild, activeQZone === 'aquaBuild'); }
+            else {
+                ctx.fillStyle = '#1a252c'; ctx.fillRect(megaProjects.aquarium.x, megaProjects.aquarium.y, megaProjects.aquarium.w, megaProjects.aquarium.h);
+                ctx.fillStyle = 'rgba(9, 132, 227, 0.4)'; ctx.fillRect(megaProjects.aquarium.x+10, megaProjects.aquarium.y+10, megaProjects.aquarium.w-20, megaProjects.aquarium.h-20);
+                ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 4; ctx.strokeRect(megaProjects.aquarium.x, megaProjects.aquarium.y, megaProjects.aquarium.w, megaProjects.aquarium.h);
+                fishes.forEach(f => {
+                    ctx.fillStyle = f.color; ctx.beginPath(); ctx.ellipse(megaProjects.aquarium.x + 10 + f.x, megaProjects.aquarium.y + 10 + f.y, f.size*2, f.size, 0, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(megaProjects.aquarium.x + 10 + f.x + f.size*2, megaProjects.aquarium.y + 10 + f.y); ctx.lineTo(megaProjects.aquarium.x + 10 + f.x + f.size*3, megaProjects.aquarium.y + 10 + f.y - f.size); ctx.lineTo(megaProjects.aquarium.x + 10 + f.x + f.size*3, megaProjects.aquarium.y + 10 + f.y + f.size); ctx.fill();
+                });
+                ctx.fillStyle = '#fff'; ctx.font='bold 20px Arial'; ctx.textAlign='center'; ctx.fillText("GALACTIC AQUARIUM", megaProjects.aquarium.x+megaProjects.aquarium.w/2, megaProjects.aquarium.y-10);
+            }
+
+            if (!megaProjects.hotel.built) { drawPlot(megaProjects.hotel, "LUXURY HOTEL CONSTRUCTION", megaProjects.hotel.price + "$", qZones.hotelBuild, activeQZone === 'hotelBuild'); }
+            else {
+                ctx.fillStyle = '#1a252c'; ctx.fillRect(megaProjects.hotel.x, megaProjects.hotel.y, megaProjects.hotel.w, megaProjects.hotel.h); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 6; ctx.strokeRect(megaProjects.hotel.x+20, megaProjects.hotel.y+20, megaProjects.hotel.w-40, megaProjects.hotel.h-40);
+                ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 45px Arial'; ctx.textAlign='center'; ctx.fillText("★★★★★ GALACTIC HOTEL", megaProjects.hotel.x + megaProjects.hotel.w/2, megaProjects.hotel.y + 70);
+                ctx.fillStyle = '#00d2d3'; ctx.fillRect(megaProjects.hotel.x+100, megaProjects.hotel.y+250, 400, 100); ctx.fillStyle = '#fff'; ctx.font = '20px Arial'; ctx.fillText("POOL AREA", megaProjects.hotel.x+300, megaProjects.hotel.y+310);
+                let adFrame = Date.now() / 1000; ctx.fillStyle = (Math.floor(adFrame*2)%2===0) ? '#00ffcc' : '#e84393'; 
+                for(let i=0; i<2; i++) for(let j=0; j<5; j++) { ctx.fillRect(megaProjects.hotel.x+100+j*80, megaProjects.hotel.y+100+i*60, 50, 40); }
+            }
+
+            ctx.fillStyle = '#1e272e'; ctx.fillRect(vipPlot.x, vipPlot.y, vipPlot.w, vipPlot.h); ctx.fillStyle = '#c0392b'; ctx.fillRect(vipPlot.x + 50, vipPlot.y, 100, vipPlot.h); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 10; ctx.strokeRect(vipPlot.x, vipPlot.y, vipPlot.w, vipPlot.h);
+            ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("💎 VIP LOUNGE 💎", vipPlot.x + vipPlot.w/2, vipPlot.y + 40);
+            ctx.fillStyle = '#d4af37'; ctx.fillRect(vipPlot.x + 180, vipPlot.y + 100, 60, 60); ctx.fillStyle = '#f1c40f'; ctx.fillRect(vipPlot.x + 170, vipPlot.y + 110, 10, 40); ctx.fillRect(vipPlot.x + 240, vipPlot.y + 110, 10, 40); ctx.fillStyle = '#00d2d3'; ctx.fillRect(vipPlot.x + 280, vipPlot.y + 120, 80, 10); ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(vipPlot.x + 320, vipPlot.y + 120); ctx.lineTo(vipPlot.x + 320, vipPlot.y + 100); ctx.stroke();
+            ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.arc(vipPlot.x + 50, vipPlot.y + 200, 20, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(vipPlot.x + 40, vipPlot.y + 190, 15, 0, Math.PI*2); ctx.fill();
+
+            // INTERROGATION ROOM
+            ctx.fillStyle = '#000'; ctx.fillRect(interPlot.x, interPlot.y, interPlot.w, interPlot.h); ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 5; ctx.strokeRect(interPlot.x, interPlot.y, interPlot.w, interPlot.h);
+            let gradient = ctx.createRadialGradient(interPlot.x + interPlot.w/2, interPlot.y + 50, 5, interPlot.x + interPlot.w/2, interPlot.y + 50, 150); gradient.addColorStop(0, 'rgba(255, 0, 0, 0.4)'); gradient.addColorStop(1, 'transparent'); ctx.fillStyle = gradient; ctx.beginPath(); ctx.moveTo(interPlot.x + interPlot.w/2, interPlot.y); ctx.lineTo(interPlot.x + 50, interPlot.y + interPlot.h); ctx.lineTo(interPlot.x + interPlot.w - 50, interPlot.y + interPlot.h); ctx.fill();
+            ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 24px Arial'; ctx.fillText("INTERROGATION ROOM", interPlot.x + interPlot.w/2, interPlot.y + 35);
+
+            // QUARANTINE ROOM 
+            ctx.fillStyle = '#1e272e'; ctx.fillRect(quarantinePlot.x, quarantinePlot.y, quarantinePlot.w, quarantinePlot.h); ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 5; ctx.strokeRect(quarantinePlot.x, quarantinePlot.y, quarantinePlot.w, quarantinePlot.h);
+            ctx.fillStyle = '#27ae60'; ctx.font = 'bold 24px Arial'; ctx.fillText("QUARANTINE ROOM", quarantinePlot.x + quarantinePlot.w/2, quarantinePlot.y + 35);
+            ctx.fillStyle = 'rgba(46, 204, 113, 0.2)'; ctx.fillRect(quarantinePlot.x+5, quarantinePlot.y+5, quarantinePlot.w-10, quarantinePlot.h-10);
+			
+           // SERVER (FIX MACHINE)
+            ctx.fillStyle = '#fff'; ctx.fillRect(equip.serverDesk.x, equip.serverDesk.y, equip.serverDesk.w, equip.serverDesk.h);
+            ctx.fillStyle = isHacked ? '#e74c3c' : '#2ecc71'; ctx.fillRect(equip.serverDesk.x + 10, equip.serverDesk.y + 10, 60, 40);
+            ctx.fillStyle = '#000'; ctx.font = 'bold 12px Arial'; ctx.textAlign='center'; ctx.fillText("SERVER", equip.serverDesk.x + 40, equip.serverDesk.y + 70);
+
+            // SLOT MACHINE 
+            ctx.fillStyle = '#e67e22'; ctx.fillRect(equip.slotMachine.x, equip.slotMachine.y, equip.slotMachine.w, equip.slotMachine.h);
+            ctx.fillStyle = '#d35400'; ctx.fillRect(equip.slotMachine.x+10, equip.slotMachine.y+10, 60, 50);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial'; ctx.fillText("777", equip.slotMachine.x+40, equip.slotMachine.y+45);
+
+            // GALACTIC VENDING (DRINK MACHINE)
+            ctx.fillStyle = '#2c3e50'; ctx.fillRect(equip.vendingMachine.x, equip.vendingMachine.y, equip.vendingMachine.w, equip.vendingMachine.h);
+            ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 3; ctx.strokeRect(equip.vendingMachine.x, equip.vendingMachine.y, equip.vendingMachine.w, equip.vendingMachine.h);
+            ctx.fillStyle = '#00ffcc'; ctx.fillRect(equip.vendingMachine.x+10, equip.vendingMachine.y+10, 40, 40);
+            ctx.fillStyle = '#e84393'; ctx.fillRect(equip.vendingMachine.x+10, equip.vendingMachine.y+60, 40, 10);
+			
+            // YERDEKİ PARALAR (Otomat)
+            droppedCoins.forEach(coin => { ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(coin.x, coin.y, 10, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.font='bold 12px Arial'; ctx.textAlign='center'; ctx.fillText("$",coin.x, coin.y+4); coin.y += Math.sin(Date.now()/100); });
+
+            ctx.strokeStyle = detectorBroken ? '#e74c3c' : '#c0392b'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(equip.detector.x - 500, equip.detector.y - 40); ctx.lineTo(equip.detector.x - 20, equip.detector.y - 40); ctx.stroke();
+            ctx.fillStyle = '#bdc3c7'; for(let i=0; i<6; i++) { ctx.beginPath(); ctx.arc(equip.detector.x - 500 + i*100, equip.detector.y - 40, 8, 0, Math.PI*2); ctx.fill(); }
+
+            ctx.fillStyle = 'rgba(0, 255, 204, 0.1)'; ctx.fillRect(equip.detector.x, equip.detector.y, equip.detector.w, equip.detector.h);
+            if (detectorBroken) { ctx.fillStyle = 'rgba(231, 76, 60, 0.3)'; ctx.fillRect(equip.detector.x, equip.detector.y, equip.detector.w, equip.detector.h); }
+
+            ctx.fillStyle = '#1e272e'; ctx.fillRect(equip.belt.x, equip.belt.y, equip.belt.w, equip.belt.h); ctx.strokeStyle = '#485460'; ctx.lineWidth = 3; ctx.beginPath();
+            for (let i = beltOffset; i < equip.belt.w; i += 20) { if (i > 0 && i < equip.belt.w) { ctx.moveTo(equip.belt.x + i, equip.belt.y); ctx.lineTo(equip.belt.x + i, equip.belt.y + equip.belt.h); } } ctx.stroke(); ctx.strokeStyle = '#808e9b'; ctx.lineWidth = 6; ctx.strokeRect(equip.belt.x, equip.belt.y, equip.belt.w, equip.belt.h);
+
+            if (currentScanningCitizen && !currentScanningCitizen.hasLuggageInHand && currentScanningCitizen.type !== 'diplomat') { const lug = currentScanningCitizen.luggage; const ly = equip.belt.y + equip.belt.h / 2 - lug.h / 2; ctx.fillStyle = lug.color; ctx.fillRect(lug.currentX, ly, lug.w, lug.h); ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.fillRect(lug.currentX + 5, ly + 5, lug.w - 10, lug.h - 10); }
+
+            ctx.fillStyle = 'rgba(52, 73, 94, 0.9)'; ctx.fillRect(equip.scanner.x, equip.scanner.y, equip.scanner.w, equip.scanner.h);
+            ctx.fillStyle = '#2c3e50'; ctx.fillRect(equip.passportDesk.x, equip.passportDesk.y, equip.passportDesk.w, equip.passportDesk.h); ctx.fillStyle = '#bdc3c7'; ctx.fillRect(equip.passportDesk.x + 20, equip.passportDesk.y + 20, 60, 40);
+            ctx.fillStyle = '#d35400'; ctx.fillRect(equip.pocketDesk.x, equip.pocketDesk.y, equip.pocketDesk.w, equip.pocketDesk.h); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(equip.pocketDesk.x + 20, equip.pocketDesk.y + 20, equip.pocketDesk.w - 40, equip.pocketDesk.h - 40);
+            
+            ctx.fillStyle = '#2980b9'; ctx.fillRect(equip.lorgDesk.x, equip.lorgDesk.y, equip.lorgDesk.w, equip.lorgDesk.h); ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign='left'; ctx.fillText("LORG", equip.lorgDesk.x + 20, equip.lorgDesk.y + 45);
+            ctx.fillStyle = '#8e44ad'; ctx.fillRect(equip.shopDesk.x, equip.shopDesk.y, equip.shopDesk.w, equip.shopDesk.h); ctx.fillStyle = '#ff00ff'; ctx.font = 'bold 20px Arial'; ctx.textAlign='left'; ctx.fillText("ZORG", equip.shopDesk.x + 20, equip.shopDesk.y + 45);
+            ctx.fillStyle = '#d35400'; ctx.fillRect(equip.horgDesk.x, equip.horgDesk.y, equip.horgDesk.w, equip.horgDesk.h); ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 20px Arial'; ctx.fillText("HORG", equip.horgDesk.x + 20, equip.horgDesk.y + 45);
+
+            if (!cafeBuilt) { drawPlot(cafePlot, "COFFEE SHOP CONSTRUCTION", "1000$", qZones.cafeBuild, activeQZone === 'cafeBuild'); } 
+            else {
+                ctx.fillStyle = '#2c3e50'; ctx.fillRect(cafePlot.x, cafePlot.y, cafePlot.w, cafePlot.h); ctx.strokeStyle = '#34495e'; ctx.lineWidth = 10; ctx.strokeRect(cafePlot.x, cafePlot.y, cafePlot.w, cafePlot.h);
+                ctx.fillStyle = '#e67e22'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("☕ GALACTIC COFFEE", cafePlot.x + cafePlot.w/2, cafePlot.y + 40);
+                if (horgItems[2].bought) { ctx.fillStyle = '#e84393'; ctx.fillRect(cafePlot.x + 50, cafePlot.y + 150, 60, 80); ctx.fillStyle = '#fff'; ctx.font = '20px Arial'; ctx.fillText('🎵', cafePlot.x + 80, cafePlot.y + 120 + Math.sin(Date.now()/200)*10); }
+                if (horgItems[3].bought) { ctx.fillStyle = '#0984e3'; ctx.fillRect(cafePlot.x + 50, cafePlot.y + 250, 60, 80); ctx.fillStyle = (Math.floor(Date.now()/500)%2===0) ? '#00ffcc' : '#ff00ff'; ctx.font='15px Arial'; ctx.fillText('ARC', cafePlot.x + 80, cafePlot.y + 280); }
+                tables.forEach(t => {
+                    ctx.fillStyle = '#ecf0f1'; ctx.beginPath(); ctx.arc(t.x, t.y, 40, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.arc(t.x, t.y, 30, 0, Math.PI*2); ctx.fill();
+                    if (t.state === 'dirty_money') { ctx.fillStyle = '#27ae60'; ctx.font = '30px Arial'; ctx.fillText('💵', t.x, t.y + 10); if (activeQZone === 'table_'+t.id) drawQZone(t, true, '#f1c40f'); } 
+                    else if (t.state === 'dirty') { ctx.fillStyle = '#8e44ad'; ctx.font = '30px Arial'; ctx.fillText('💩', t.x, t.y + 10); if (activeQZone === 'table_'+t.id) drawQZone(t, true, '#3498db'); }
+                });
+            }
+
+            drawQZone(qZones.scanner, activeQZone === 'xray', '#2ecc71'); drawQZone(qZones.passport, activeQZone === 'passport', '#9b59b6'); drawQZone(qZones.pocket, activeQZone === 'pocket', '#e67e22'); drawQZone(qZones.lorg, activeQZone === 'lorg', '#2980b9'); drawQZone(qZones.shop, activeQZone === 'shop', '#e84393'); drawQZone(qZones.horg, activeQZone === 'horg', '#d35400');
+            drawQZone(qZones.slot, activeQZone === 'slot', '#f1c40f');
+            if (isHacked) drawQZone(qZones.server, activeQZone === 'server', '#ff0000');
+            if (detectorBroken) drawQZone(qZones.detectorFix, activeQZone === 'detectorFix', '#e74c3c');
+        }
+
+        function drawPlot(plot, title, price, zone, isActive) {
+            ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.setLineDash([15, 15]); ctx.strokeRect(plot.x, plot.y, plot.w, plot.h); ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(241, 196, 15, 0.05)'; ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+            ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText(title, plot.x + plot.w/2, plot.y + plot.h/2 - 10); ctx.font = '20px Arial'; ctx.fillText("Cost: " + price, plot.x + plot.w/2, plot.y + plot.h/2 + 25);
+            drawQZone(zone, isActive, '#f1c40f');
+        }
+
+        function drawQZone(zone, isActive, colorStr) { const boxSize = 100; ctx.fillStyle = isActive ? colorStr : 'rgba(255,255,255,0.05)'; ctx.globalAlpha = isActive ? 0.4 : 1; ctx.fillRect(zone.x - boxSize/2, zone.y - boxSize/2, boxSize, boxSize); ctx.globalAlpha = 1; ctx.strokeStyle = colorStr; ctx.lineWidth = 3; ctx.setLineDash([10, 10]); ctx.strokeRect(zone.x - boxSize/2, zone.y - boxSize/2, boxSize, boxSize); ctx.setLineDash([]); }
+        
+        function drawDetectorArch() { 
+            const d = equip.detector; ctx.fillStyle = '#2c3e50'; ctx.fillRect(d.x, d.y - 20, d.w, 20); ctx.fillRect(d.x, d.y + d.h, d.w, 20); 
+            ctx.fillStyle = detectorBroken ? '#e74c3c' : '#00ffcc'; 
+            ctx.fillRect(d.x + 10, d.y - 15, d.w - 20, 10); ctx.fillRect(d.x + 10, d.y + d.h + 5, d.w - 20, 10); 
+        }
+
+        function drawDetailedPlayer() {
+            ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle); const swing = Math.sin(player.animFrame) * 15; let suitColor = shopItems[4].bought ? '#f1c40f' : '#34495e';
+            ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(-10 + swing, -20, 25, 12, 5); ctx.fill(); ctx.beginPath(); ctx.roundRect(-10 - swing, 8, 25, 12, 5); ctx.fill();
+            ctx.fillStyle = '#2c3e50'; ctx.beginPath(); ctx.roundRect(-5 - swing, -25, 20, 10, 4); ctx.fill(); ctx.beginPath(); ctx.roundRect(-5 + swing, 15, 20, 10, 4); ctx.fill();
+            ctx.fillStyle = '#4cd137'; ctx.beginPath(); ctx.arc(15 - swing, -20, 6, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(15 + swing, 20, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = suitColor; ctx.beginPath(); ctx.roundRect(-15, -18, 30, 36, 8); ctx.fill(); ctx.fillStyle = '#f39c12'; ctx.fillRect(-12, -18, 8, 6); ctx.fillRect(-12, 12, 8, 6); ctx.beginPath(); ctx.arc(5, -8, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#4cd137'; ctx.beginPath(); ctx.ellipse(5, 0, 16, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(12, 0, 6, 12, 0, -Math.PI/2, Math.PI/2); ctx.fill(); ctx.restore();
+        }
+        
+        function drawWorker(w, color) {
+            ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(w.angle || 0); const swing = Math.sin(w.animFrame || 0) * 10;
+            ctx.fillStyle = '#7f8c8d'; ctx.beginPath(); ctx.roundRect(-10+swing, -15, 20, 10, 3); ctx.fill(); ctx.beginPath(); ctx.roundRect(-10-swing, 5, 20, 10, 3); ctx.fill();
+            ctx.fillStyle = w === workers.securityBot ? '#2c3e50' : '#95a5a6'; ctx.beginPath(); ctx.roundRect(-12, -12, 24, 24, 5); ctx.fill();
+            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill(); ctx.restore();
+            if (w.actionTimer > 0) { ctx.fillStyle = '#fff'; ctx.fillRect(w.x - 15, w.y - 25, 30, 5); ctx.fillStyle = color; ctx.fillRect(w.x - 15, w.y - 25, (w.actionTimer/30)*30, 5); }
+        }
+
+        function drawFaceShape(shape, color, radius, x, y) { ctx.fillStyle = color; ctx.beginPath(); if (shape === 'circle') { ctx.arc(x, y, radius, 0, Math.PI*2); } else { ctx.roundRect(x - radius, y - radius, radius * 2, radius * 2, 5); } ctx.fill(); }
+
+        function drawCitizenShape(c) {
+            ctx.save(); ctx.translate(c.x, c.y); const swing = c.state === 'frozen_alarm' ? 0 : Math.sin(c.animFrame) * 10;
+            
+            if (c.type === 'galactic_vip') {
+                ctx.shadowBlur = 15; ctx.shadowColor = '#f1c40f'; drawFaceShape(c.shape, '#f1c40f', c.radius + 3, 0, 0); ctx.shadowBlur = 0;
+            } else { drawFaceShape(c.shape, c.color, c.radius, 0, 0); }
+
+            // Zombi Pütürleri
+            if (c.type === 'zombie') {
+                ctx.fillStyle = '#0b2e13'; 
+                ctx.beginPath(); ctx.arc(-8, -8, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(10, -5, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(5, 12, 2.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-12, 8, 2, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(-5 + swing, -15, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(-5 - swing, 15, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(8, -5, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(8, 5, 6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(10, -5, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 5, 2.5, 0, Math.PI*2); ctx.fill();
+            if (c.type === 'galactic_vip') { ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.textAlign='center'; ctx.fillText('VIP', 0, -25); }
+            if (c.state === 'frozen_alarm') { ctx.fillStyle = (Math.floor(Date.now()/200)%2===0) ? '#e74c3c' : 'transparent'; ctx.beginPath(); ctx.arc(0, 0, c.radius + 5, 0, Math.PI*2); ctx.fill(); }
+            ctx.restore();
+            
+            if (c.bubbleText) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(c.x - 70, c.y - 75, 140, 35); ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign='center'; ctx.fillText(c.bubbleText, c.x, c.y - 52); }
+        }
+
+        function drawCitizen(c) { drawCitizenShape(c); if (c.hasLuggageInHand) { ctx.save(); ctx.translate(c.x, c.y); ctx.fillStyle = c.luggage.color; ctx.fillRect(0, 10, c.luggage.w, c.luggage.h); ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(5, 15, c.luggage.w - 10, c.luggage.h - 10); ctx.restore(); } }
+
+        function drawPoliceNPC() {
+            ctx.save(); ctx.translate(police.x, police.y); const swing = Math.sin(police.animFrame) * 10;
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.roundRect(-15, -15, 30, 30, 5); ctx.fill(); ctx.fillStyle = '#f5cd79'; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.fillRect(-5, -12, 10, 24); ctx.fillStyle = '#222'; ctx.fillRect(-10, -25, 20, 50); ctx.fillRect(-5, -20, 10, 40); ctx.restore();
+            if (police.bubbleText) { ctx.fillStyle = '#e74c3c'; ctx.fillRect(police.x - 90, police.y - 80, 180, 35); ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign='center'; ctx.fillText(police.bubbleText, police.x, police.y - 57); }
+        }
+
+       function drawXrayUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#2f3640'; ctx.fillRect(cx - 300, cy - 200, 600, 400); ctx.strokeStyle = '#00a8ff'; ctx.lineWidth = 5; ctx.strokeRect(cx - 300, cy - 200, 600, 400); ctx.fillStyle = '#00a8ff'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("🔍 LUGGAGE X-RAY", cx, cy - 140); ctx.fillStyle = '#192a56'; ctx.fillRect(cx - 200, cy - 100, 400, 150); ctx.strokeStyle = '#00a8ff'; ctx.lineWidth = 3; ctx.strokeRect(cx - 200, cy - 100, 400, 150);
+            if (currentScanningCitizen) { 
+                ctx.font = '60px Arial'; ctx.fillText(currentScanningCitizen.luggage.items[0].icon, cx - 80, cy + 5); ctx.fillText(currentScanningCitizen.luggage.items[1].icon, cx + 80, cy + 5); ctx.fillStyle = '#f5f6fa'; ctx.font = '20px Arial'; ctx.fillText(currentScanningCitizen.luggage.items[0].name, cx - 80, cy + 35); ctx.fillText(currentScanningCitizen.luggage.items[1].name, cx + 80, cy + 35); 
+            }
+            ctx.fillStyle = '#44bd32'; ctx.fillRect(cx - 220, cy + 80, 200, 80); ctx.strokeStyle = '#2f3640'; ctx.strokeRect(cx - 220, cy + 80, 200, 80); ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial'; ctx.fillText("APPROVE", cx - 120, cy + 130); ctx.fillStyle = '#e84118'; ctx.fillRect(cx + 20, cy + 80, 200, 80); ctx.strokeRect(cx + 20, cy + 80, 200, 80); ctx.fillStyle = '#fff'; ctx.fillText("REJECT", cx + 120, cy + 130);
+        }
+
+        function drawPassportUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(cx - 400, cy - 250, 800, 500); ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 5; ctx.strokeRect(cx - 400, cy - 250, 800, 500); ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 35px Arial'; ctx.textAlign = 'center'; ctx.fillText("🛂 ID CHECK", cx, cy - 190);
+            if (currentPassportCitizen) {
+                if (currentPassportCitizen.isBribing) {
+                    ctx.fillStyle = '#f39c12'; ctx.fillRect(cx - 300, cy - 120, 600, 200); ctx.strokeStyle = '#e67e22'; ctx.strokeRect(cx - 300, cy - 120, 600, 200); ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial'; ctx.fillText("SSSH! TAKE THIS 400$ AND LET ME PASS...", cx, cy - 50); ctx.font = '18px Arial'; ctx.fillText("Warning: You might get caught by an undercover cop!", cx, cy);
+                    ctx.fillStyle = '#27ae60'; ctx.fillRect(cx - 220, cy + 130, 200, 60); ctx.strokeStyle = '#2ecc71'; ctx.strokeRect(cx - 220, cy + 130, 200, 60); ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Arial'; ctx.fillText("TAKE BRIBE", cx - 120, cy + 168); ctx.fillStyle = '#c0392b'; ctx.fillRect(cx + 20, cy + 130, 200, 60); ctx.strokeStyle = '#e74c3c'; ctx.strokeRect(cx + 20, cy + 130, 200, 60); ctx.fillStyle = '#fff'; ctx.fillText("REJECT", cx + 120, cy + 168);
+                } else {
+                    const isMatch = (currentPassportCitizen.color === currentPassportCitizen.passportColor && currentPassportCitizen.shape === currentPassportCitizen.passportShape);
+                    
+                    ctx.fillStyle = '#34495e'; ctx.fillRect(cx - 320, cy - 140, 280, 220); ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText("KAMERA", cx - 180, cy - 160); 
+                    
+                    if (currentPassportCitizen.type === 'zombie') {
+                        drawFaceShape(currentPassportCitizen.shape, '#1e5128', 60, cx - 180, cy - 30);
+                        ctx.fillStyle = '#0b2e13';
+                        ctx.beginPath(); ctx.arc(cx - 190, cy - 40, 4, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 160, cy - 20, 5, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 165, cy - 60, 3, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 210, cy - 20, 4, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(cx - 180, cy - 10, 5, 0, Math.PI*2); ctx.fill();
+                    } else {
+                        drawFaceShape(currentPassportCitizen.shape, currentPassportCitizen.type === 'galactic_vip' ? '#f1c40f' : currentPassportCitizen.color, 60, cx - 180, cy - 30); 
+                    }
+
+					ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - 200, cy - 40, 10, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx - 160, cy - 40, 10, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx - 200, cy - 40, 4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx - 160, cy - 40, 4, 0, Math.PI*2); ctx.fill();
+                    
+                    ctx.fillStyle = '#fff'; ctx.fillRect(cx + 40, cy - 140, 280, 220); ctx.strokeStyle = '#34495e'; ctx.lineWidth = 2; ctx.strokeRect(cx + 40, cy - 140, 280, 220); ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 20px Arial'; ctx.fillText("PASSPORT", cx + 180, cy - 110); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(cx + 120, cy - 70, 120, 120); ctx.strokeRect(cx + 120, cy - 70, 120, 120); drawFaceShape(currentPassportCitizen.passportShape, currentPassportCitizen.type === 'galactic_vip' ? '#f1c40f' : currentPassportCitizen.passportColor, 40, cx + 180, cy - 10); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx + 165, cy - 15, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 195, cy - 15, 8, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx + 165, cy - 15, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 195, cy - 15, 3, 0, Math.PI*2); ctx.fill();
+                    
+                    if (shopItems[2].bought) { ctx.fillStyle = isMatch ? '#2ecc71' : '#e74c3c'; ctx.font = 'bold 16px Arial'; ctx.fillText(isMatch ? "MATCHED" : "FORGED DOCS!", cx + 180, cy + 70); }
+                    
+                    ctx.fillStyle = '#44bd32'; ctx.fillRect(cx - 220, cy + 130, 200, 60); ctx.strokeStyle = '#2f3640'; ctx.strokeRect(cx - 220, cy + 130, 200, 60); ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial'; ctx.fillText("APPROVE", cx - 120, cy + 170); 
+
+                    if (currentPassportCitizen.quarantineUnlocked) {
+                        ctx.fillStyle = '#e67e22'; ctx.fillRect(cx + 20, cy + 130, 200, 60); ctx.strokeRect(cx + 20, cy + 130, 200, 60); ctx.fillStyle = '#fff'; ctx.fillText("QUARANTINE", cx + 120, cy + 170);
+                    } else {
+                        ctx.fillStyle = '#e84118'; ctx.fillRect(cx + 20, cy + 130, 200, 60); ctx.strokeRect(cx + 20, cy + 130, 200, 60); ctx.fillStyle = '#fff'; ctx.fillText("REJECT", cx + 120, cy + 170);
+                    }
+                }
+            }
+        }
+
+        function drawPocketUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#d35400'; ctx.fillRect(cx - 300, cy - 150, 600, 300); ctx.fillStyle = '#ecf0f1'; ctx.fillRect(cx - 280, cy - 130, 560, 260); ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("🧳 CHECK POCKETS", cx, cy - 160); ctx.font = '16px Arial'; ctx.fillText("Click on dangerous items to send them to storage!", cx, cy - 90);
+            if (currentPocketCitizen) {
+                const items = currentPocketCitizen.pocketItems; const positions = [cx - 150, cx, cx + 150];
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.roundRect(positions[i] - 50, cy - 80, 100, 100, 10); ctx.fill(); ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 3; ctx.strokeRect(positions[i] - 50, cy - 80, 100, 100);
+                    if (items[i].confiscated) { ctx.fillStyle = '#27ae60'; ctx.font = '50px Arial'; ctx.fillText('✔️', positions[i], cy - 10); ctx.fillStyle = '#2c3e50'; ctx.font = '14px Arial'; ctx.fillText('CONFISCATED', positions[i], cy + 10); } else { ctx.font = '60px Arial'; ctx.fillText(items[i].icon, positions[i], cy - 10); }
+                }
+                if (items.some(i => i.isDangerous && i.confiscated)) {
+                    ctx.fillStyle = '#c0392b'; ctx.fillRect(cx - 220, cy + 80, 200, 60); ctx.strokeStyle = '#e74c3c'; ctx.strokeRect(cx - 220, cy + 80, 200, 60); ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Arial'; ctx.fillText("INTERROGATE", cx - 120, cy + 118);
+                    ctx.fillStyle = '#3498db'; ctx.fillRect(cx + 20, cy + 80, 200, 60); ctx.strokeStyle = '#2980b9'; ctx.strokeRect(cx + 20, cy + 80, 200, 60); ctx.fillStyle = '#fff'; ctx.fillText("SEND PASSENGER", cx + 120, cy + 118);
+                } else { ctx.fillStyle = '#3498db'; ctx.fillRect(cx - 100, cy + 80, 200, 60); ctx.strokeStyle = '#2980b9'; ctx.strokeRect(cx - 100, cy + 80, 200, 60); ctx.fillStyle = '#fff'; ctx.font = 'bold 24px Arial'; ctx.fillText("SEND PASSENGER", cx, cy + 118); }
+            }
+        }
+
+       function drawShopUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#8e44ad'; ctx.fillRect(cx - 250, cy - 270, 500, 550); ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 5; ctx.strokeRect(cx - 250, cy - 270, 500, 550); ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("🛸 ZORG'S BLACK MARKET", cx, cy - 230); ctx.font = '18px Arial'; ctx.fillStyle = '#f1c40f'; ctx.fillText("Money: " + money + "$", cx, cy - 205);
+            for (let i = 0; i < shopItems.length; i++) { let item = shopItems[i]; let boxY = cy - 200 + (i * 65); ctx.fillStyle = item.bought ? '#27ae60' : '#34495e'; ctx.fillRect(cx - 200, boxY, 400, 50); ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2; ctx.strokeRect(cx - 200, boxY, 400, 50); ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left'; ctx.fillText(item.name, cx - 180, boxY + 22); ctx.font = '12px Arial'; ctx.fillStyle = '#bdc3c7'; ctx.fillText(item.desc, cx - 180, boxY + 40); ctx.font = 'bold 18px Arial'; ctx.textAlign = 'right'; if (item.bought) { ctx.fillStyle = '#fff'; ctx.fillText("BOUGHT", cx + 180, boxY + 30); } else { ctx.fillStyle = money >= item.price ? '#f1c40f' : '#e74c3c'; ctx.fillText(item.price + "$", cx + 180, boxY + 30); } }
+            
+            let btnY = cy + 140; ctx.fillStyle = contrabandStock > 0 ? '#e67e22' : '#7f8c8d'; ctx.fillRect(cx - 200, btnY, 400, 40); ctx.strokeStyle = '#d35400'; ctx.strokeRect(cx - 200, btnY, 400, 40); ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.fillText(`Sell Contraband (Stock: ${contrabandStock}) -> Earn: ${contrabandStock * 300}$`, cx, btnY + 25);
+            ctx.fillStyle = '#fff'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText("Press [F] to exit", cx, cy + 240);
+        }
+
+        function drawHorgUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#d35400'; ctx.fillRect(cx - 250, cy - 250, 500, 480); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 5; ctx.strokeRect(cx - 250, cy - 250, 500, 480); ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("🤖 HORG'S HUMAN RESOURCES", cx, cy - 210); ctx.font = '18px Arial'; ctx.fillStyle = '#f1c40f'; ctx.fillText("Money: " + money + "$", cx, cy - 185);
+            for (let i = 0; i < horgItems.length; i++) { let item = horgItems[i]; let boxY = cy - 150 + (i * 65); ctx.fillStyle = item.bought ? '#27ae60' : '#34495e'; ctx.fillRect(cx - 200, boxY, 400, 55); ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2; ctx.strokeRect(cx - 200, boxY, 400, 55); ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left'; ctx.fillText(item.name, cx - 180, boxY + 22); ctx.font = '12px Arial'; ctx.fillStyle = '#bdc3c7'; ctx.fillText(item.desc, cx - 180, boxY + 42); ctx.font = 'bold 18px Arial'; ctx.textAlign = 'right'; if (item.bought) { ctx.fillStyle = '#fff'; ctx.fillText("BOUGHT", cx + 180, boxY + 35); } else { ctx.fillStyle = money >= item.price ? '#f1c40f' : '#e74c3c'; ctx.fillText(item.price + "$", cx + 180, boxY + 35); } }
+            ctx.fillStyle = '#fff'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText("Press [F] to exit", cx, cy + 210);
+        }
+
+        function drawLorgUI() {
+            const cx = canvas.width / 2; const cy = canvas.height / 2; ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#2980b9'; ctx.fillRect(cx - 250, cy - 250, 500, 480); ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 5; ctx.strokeRect(cx - 250, cy - 250, 500, 480); ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.fillText("🌍 LORG REAL ESTATE", cx, cy - 210); ctx.font = '18px Arial'; ctx.fillStyle = '#f1c40f'; ctx.fillText("Money: " + money + "$", cx, cy - 185);
+            for (let i = 0; i < lorgItems.length; i++) { let item = lorgItems[i]; let boxY = cy - 150 + (i * 65); ctx.fillStyle = item.bought ? '#27ae60' : '#34495e'; ctx.fillRect(cx - 200, boxY, 400, 55); ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2; ctx.strokeRect(cx - 200, boxY, 400, 55); ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left'; ctx.fillText(item.name, cx - 180, boxY + 22); ctx.font = '12px Arial'; ctx.fillStyle = '#00ffcc'; ctx.fillText(item.desc, cx - 180, boxY + 42); ctx.font = 'bold 18px Arial'; ctx.textAlign = 'right'; if (item.bought) { ctx.fillStyle = '#fff'; ctx.fillText("OWNED", cx + 180, boxY + 35); } else { ctx.fillStyle = money >= item.price ? '#f1c40f' : '#e74c3c'; ctx.fillText(item.price + "$", cx + 180, boxY + 35); } }
+            ctx.fillStyle = '#fff'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText("Press [F] to exit", cx, cy + 150);
+        }
+
+        function drawBonusUI() { ctx.fillStyle = '#fff'; ctx.fillRect(canvas.width - 220, 20, 200, 150); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 5; ctx.strokeRect(canvas.width - 220, 20, 200, 150); ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.fillText("FIND THE TARGET", canvas.width - 120, 50); drawFaceShape(bonusTarget.shape, bonusTarget.color, 35, canvas.width - 120, 100); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(canvas.width - 135, 95, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(canvas.width - 105, 95, 6, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(canvas.width - 135, 95, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(canvas.width - 105, 95, 2, 0, Math.PI*2); ctx.fill(); }
+		
+        function removeCitizen(citizen) { const idx = citizens.findIndex(c => c.id === citizen.id); if(idx !== -1) citizens.splice(idx, 1); }
+        
+        function updateMoneyUI(change) {
+            if (change > 0 && feverTimer > 0) change *= 2; // FEVER x2 MANTIĞI
+            
+            money += change; uiMoney.innerText = money; if (change === 0) return;
+            
+            // UI Efekti
+            moneyDisplay.style.transform = 'scale(1.2)';
+            setTimeout(() => moneyDisplay.style.transform = 'scale(1)', 200);
+
+            const pop = document.createElement('div'); pop.innerText = (change > 0 ? "+" : "") + change + "$";
+            pop.style.position = 'absolute'; pop.style.top = '70px'; pop.style.left = '20px'; pop.style.color = (change > 0 ? "#4cd137" : "#e84118"); pop.style.fontSize = '28px'; pop.style.fontWeight = 'bold'; pop.style.transition = 'all 1s'; pop.style.textShadow = '2px 2px 0 #000'; pop.style.zIndex = '15'; document.body.appendChild(pop);
+            setTimeout(() => { pop.style.top = '30px'; pop.style.opacity = '0'; }, 10); setTimeout(() => { pop.remove(); }, 1000);
+        }
+
+        function spawnCitizen() { if (citizens.length < 15 && !['bonus_playing'].includes(gameState) && !isHacked && !detectorBroken) citizens.push(new Citizen()); setTimeout(spawnCitizen, 4000 + Math.random() * 4000); }
+        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+        spawnCitizen(); gameLoop();
+    </script>
+</body>
+</html>

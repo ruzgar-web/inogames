@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyboard Clicker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Mavi Tonları ve Temel Renkler */
+			 background: rgba(162, 210, 255, 1);
+            --panel-bg: rgba(255, 255, 255, 0.15);
+            --panel-border: rgba(255, 255, 255, 0.25);
+            --text-main: #ffffff;
+            --text-dark: #2c3e50;
+            
+            /* Geliştirme Buton Renkleri */
+            --btn-up1: linear-gradient(to bottom, #55efc4, #00b894);
+            --btn-up1-shadow: #009477;
+            --btn-up2: linear-gradient(to bottom, #81ecec, #00cec9);
+            --btn-up2-shadow: #00a8a4;
+            
+            /* Klavye Tuşu Varsayılan Renkleri */
+            --key-face: #ffffff;
+            --key-shadow: #cbd5e1;
+            --key-text: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            font-family: 'Nunito', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            height: 100vh;
+            background: var(--bg-gradient);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            /* Low Poly Görsel İllüzyonu */
+            background-image: 
+                linear-gradient(30deg, rgba(255,255,255,0.05) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.05) 87.5%, rgba(255,255,255,0.05)),
+                linear-gradient(150deg, rgba(255,255,255,0.05) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.05) 87.5%, rgba(255,255,255,0.05)),
+                linear-gradient(30deg, rgba(255,255,255,0.05) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,0.05) 87.5%, rgba(255,255,255,0.05));
+            background-size: 60px 105px;
+        }
+
+        .game-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr 120px;
+            width: 100%;
+            max-width: 1300px;
+            height: 90vh;
+            padding: 20px;
+        }
+
+        /* --- SOL PANEL: Geliştirmeler ve Mağaza --- */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--panel-border);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        .panel-title {
+            color: var(--text-main);
+            font-size: 1.3rem;
+            font-weight: 900;
+            text-align: center;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.15);
+            border-bottom: 2px dashed var(--panel-border);
+            padding-bottom: 8px;
+            margin-bottom: 5px;
+        }
+
+        .upgrade-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.05s, box-shadow 0.05s;
+            text-shadow: 1px 2px 2px rgba(0,0,0,0.2);
+        }
+
+        .upgrade-btn .cost {
+            display: block;
+            font-size: 1.3rem;
+            font-weight: 900;
+            color: #ffeaa7;
+            margin-top: 4px;
+        }
+
+        .btn-up1 {
+            background: var(--btn-up1);
+            box-shadow: 0 6px 0 var(--btn-up1-shadow), 0 10px 15px rgba(0,0,0,0.15);
+        }
+        .btn-up1:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--btn-up1-shadow), 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .btn-up2 {
+            background: var(--btn-up2);
+            box-shadow: 0 6px 0 var(--btn-up2-shadow), 0 10px 15px rgba(0,0,0,0.15);
+        }
+        .btn-up2:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--btn-up2-shadow), 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .upgrade-btn:disabled {
+            filter: grayscale(0.8) brightness(0.8);
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: 0 4px 0 #7f8c8d !important;
+        }
+
+        /* Mağaza Izgarası */
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        .shop-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .shop-item:hover:not(.locked) {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.03);
+        }
+
+        .shop-item.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .shop-item.equipped {
+            border-color: #ffeaa7;
+            background: rgba(255, 234, 167, 0.2);
+        }
+
+        .shop-preview {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 8px;
+            border-radius: 8px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+
+        .shop-item.equipped .shop-preview {
+            animation: bounce 1s infinite alternate;
+        }
+
+        .shop-title { font-size: 0.9rem; font-weight: 900; }
+        .shop-cost { font-size: 0.85rem; color: #ffeaa7; font-weight: 700; margin-top: 2px;}
+
+        /* --- ORTA PANEL: Tam Hizalı Skor ve Tuş --- */
+        .center-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .score-box {
+            text-align: center;
+        }
+
+        .score-label {
+            font-size: 1.3rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 900;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.15);
+        }
+
+        #score {
+            font-size: 6.5rem;
+            color: var(--text-main);
+            text-shadow: 0 8px 0px rgba(0,0,0,0.15), 0 20px 30px rgba(0,0,0,0.2);
+            line-height: 1;
+            margin-top: 5px;
+        }
+
+        /* 3D Klavye Tuşu Kapsayıcısı */
+        .key-container {
+            position: relative;
+            perspective: 800px;
+        }
+
+        .keyboard-key {
+            width: 240px;
+            height: 240px;
+            background: var(--key-face);
+            border: none;
+            border-radius: 36px;
+            cursor: pointer;
+            font-size: 2.4rem;
+            font-weight: 900;
+            color: var(--key-text);
+            outline: none;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.05s, box-shadow 0.05s;
+            /* Sevimli Gerçekçi Katmanlı 3D Gölgelendirme */
+            box-shadow: 
+                inset 0 12px 12px rgba(255,255,255,1),
+                inset 0 -12px 12px rgba(0,0,0,0.05),
+                0 22px 0 var(--key-shadow),
+                0 30px 35px rgba(0,0,0,0.25);
+        }
+
+        .keyboard-key:active, .keyboard-key.forced-active {
+            transform: translateY(16px);
+            box-shadow: 
+                inset 0 6px 6px rgba(0,0,0,0.1),
+                0 6px 0 var(--key-shadow),
+                0 10px 15px rgba(0,0,0,0.2);
+        }
+
+        /* --- SAĞ ÜST PANEL: Yuvarlak İkon Kontrolleri --- */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: flex-start;
+            padding-top: 10px;
+            gap: 15px;
+        }
+
+        .circle-btn {
+            width: 60px;
+            height: 60px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            box-shadow: 0 6px 0 #cbd5e1, 0 10px 15px rgba(0,0,0,0.15);
+            transition: transform 0.05s, box-shadow 0.05s;
+        }
+
+        .circle-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #cbd5e1, 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .circle-btn svg {
+            width: 26px;
+            height: 26px;
+            fill: var(--text-dark);
+            transition: fill 0.2s;
+        }
+
+        .btn-reset-ui {
+            background: #ffaaa5;
+            box-shadow: 0 6px 0 #e08b86, 0 10px 15px rgba(0,0,0,0.15);
+        }
+        .btn-reset-ui:active {
+            box-shadow: 0 2px 0 #e08b86;
+        }
+        .btn-reset-ui svg { fill: white; }
+
+        /* Buton Görünüm Temaları (Skins) */
+        .skin-default { --key-face: #ffffff; --key-shadow: #cbd5e1; --key-text: #1e293b; }
+        .skin-pink { --key-face: #ff9ff3; --key-shadow: #f368e0; --key-text: #ffffff; }
+        .skin-gold { --key-face: #feca57; --key-shadow: #ff9f43; --key-text: #ffffff; }
+        .skin-emerald { --key-face: #1dd1a1; --key-shadow: #10ac84; --key-text: #ffffff; }
+        .skin-cyber { --key-face: #2c3e50; --key-shadow: #00d2d3; --key-text: #00d2d3; border: 2px solid #00d2d3; }
+
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-layout">
+        <!-- SOL PANEL: Yükseltmeler & Mağaza -->
+        <div class="left-panel">
+            <div class="panel-title">IMPROVEMENTS</div>
+            <button id="btn-extra" class="upgrade-btn btn-up1">
+                Extra Click (+2)
+                <span class="cost"><span id="cost-extra">50</span> Score</span>
+            </button>
+            <button id="btn-double" class="upgrade-btn btn-up2">
+                Double Multiplier (x2)
+                <span class="cost"><span id="cost-double">200</span> Score</span>
+            </button>
+
+            <div class="panel-title" style="margin-top: 15px;">BUTTON STORE</div>
+            <div class="shop-grid">
+                <!-- Klasik Tuş -->
+                <div class="shop-item equipped" data-skin="default" data-cost="0">
+                    <div class="shop-preview skin-default" style="background:#fff"></div>
+                    <div class="shop-title">Classical</div>
+                    <div class="shop-cost">Active</div>
+                </div>
+                <!-- Pembe Tuş -->
+                <div class="shop-item locked" data-skin="pink" data-cost="25">
+                    <div class="shop-preview skin-pink" style="background:#ff9ff3"></div>
+                    <div class="shop-title">Sweet Pink</div>
+                    <div class="shop-cost">25 Score</div>
+                </div>
+                <!-- Altın Tuş -->
+                <div class="shop-item locked" data-skin="gold" data-cost="50">
+                    <div class="shop-preview skin-gold" style="background:#feca57"></div>
+                    <div class="shop-title">Pure gold</div>
+                    <div class="shop-cost">50 Score</div>
+                </div>
+                <!-- Zümrüt Tuş -->
+                <div class="shop-item locked" data-skin="emerald" data-cost="75">
+                    <div class="shop-preview skin-emerald" style="background:#1dd1a1"></div>
+                    <div class="shop-title">Emerald</div>
+                    <div class="shop-cost">75 Score</div>
+                </div>
+                <!-- Siber Tuş -->
+                <div class="shop-item locked" data-skin="cyber" data-cost="200" style="grid-column: span 2">
+                    <div class="shop-preview skin-cyber" style="background:#2c3e50; border:1px solid #00d2d3"></div>
+                    <div class="shop-title">Cyber ​​Neon</div>
+                    <div class="shop-cost">200 Score</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ORTA PANEL: Tam Hizalanmış Oyun Alanı -->
+        <div class="center-panel">
+            <div class="score-box">
+                <div class="score-label">Total Score</div>
+                <h1 id="score">0</h1>
+            </div>
+            <div class="key-container">
+                <button id="main-clicker" class="keyboard-key skin-default">CLICK</button>
+            </div>
+        </div>
+
+        <!-- SAĞ ÜST PANEL: Yuvarlak İkonlu Ayarlar -->
+        <div class="right-panel">
+            <!-- Ses Butonu (Açık İkonu varsayılan) -->
+            <button id="btn-sound" class="circle-btn" title="Ses Aç/Kapat">
+                <svg id="sound-icon" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+            </button>
+            <!-- Reset Butonu -->
+            <button id="btn-reset" class="circle-btn btn-reset-ui" title="Oyunu Sıfırla">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Oyun Durumu Verileri ---
+        let score = 0;
+        let baseClickValue = 1;
+        let clickMultiplier = 1;
+        let extraCost = 50;
+        let doubleCost = 200;
+        let soundEnabled = true;
+
+        // Mağaza Eşyaları Takibi
+        const skinsOwned = { default: true, pink: false, gold: false, emerald: false, cyber: false };
+        let currentSkin = 'default';
+
+        // --- DOM Bağlantıları ---
+        const scoreEl = document.getElementById('score');
+        const mainClickerEl = document.getElementById('main-clicker');
+        const btnExtra = document.getElementById('btn-extra');
+        const costExtraEl = document.getElementById('cost-extra');
+        const btnDouble = document.getElementById('btn-double');
+        const costDoubleEl = document.getElementById('cost-double');
+        const btnSound = document.getElementById('btn-sound');
+        const soundIcon = document.getElementById('sound-icon');
+        const btnReset = document.getElementById('btn-reset');
+        const shopItems = document.querySelectorAll('.shop-item');
+
+        // --- Gelişmiş Gerçekçi Ses Sentezleyici (Mechanical Switch Synth) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function playMechanicalClick() {
+            if (!soundEnabled) return;
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const now = audioCtx.currentTime;
+
+            // 1. Gövde Sesi (Tuşun plastiğe vurma rezonansı - Tok ses)
+            const oscBody = audioCtx.createOscillator();
+            const gainBody = audioCtx.createGain();
+            oscBody.type = 'triangle';
+            oscBody.frequency.setValueAtTime(160, now);
+            oscBody.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+            gainBody.gain.setValueAtTime(0.4, now);
+            gainBody.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+            
+            // 2. Metalik Klik / Yay Sesi (Switch mekanizmasının keskin sesi)
+            const oscClick = audioCtx.createOscillator();
+            const gainClick = document.createElement('div'); // Sadece ayırmak için sanal gruplama mantığı
+            const gainClickNode = audioCtx.createGain();
+            oscClick.type = 'sine';
+            oscClick.frequency.setValueAtTime(1400, now);
+            oscClick.frequency.exponentialRampToValueAtTime(800, now + 0.02);
+            gainClickNode.gain.setValueAtTime(0.15, now);
+            gainClickNode.gain.exponentialRampToValueAtTime(0.01, now + 0.02);
+
+            // Bağlantılar
+            oscBody.connect(gainBody);
+            gainBody.connect(audioCtx.destination);
+            
+            oscClick.connect(gainClickNode);
+            gainClickNode.connect(audioCtx.destination);
+
+            // Başlat ve Bitir
+            oscBody.start(now);
+            oscBody.stop(now + 0.08);
+            oscClick.start(now);
+            oscClick.stop(now + 0.03);
+        }
+
+        // --- Arayüz Yenileme Döngüsü ---
+        function updateUI() {
+            scoreEl.innerText = score;
+            costExtraEl.innerText = extraCost;
+            costDoubleEl.innerText = doubleCost;
+
+            // Yükseltme buton kontrolleri
+            btnExtra.disabled = score < extraCost;
+            btnDouble.disabled = score < doubleCost;
+
+            // Mağaza arayüz güncellemeleri
+            shopItems.forEach(item => {
+                const skin = item.dataset.skin;
+                const cost = parseInt(item.dataset.cost);
+                const costLabel = item.querySelector('.shop-cost');
+
+                if (skinsOwned[skin]) {
+                    item.classList.remove('locked');
+                    if (currentSkin === skin) {
+                        item.classList.add('equipped');
+                        costLabel.innerText = "Aktif";
+                    } else {
+                        item.classList.remove('equipped');
+                        costLabel.innerText = "Seç";
+                    }
+                } else {
+                    // Satın alınabilir durumda mı?
+                    if (score >= cost) {
+                        item.classList.remove('locked');
+                    } else {
+                        item.classList.add('locked');
+                    }
+                    costLabel.innerText = `${cost} Puan`;
+                }
+            });
+        }
+
+        // --- Ana Tıklama Mekaniği ---
+        mainClickerEl.addEventListener('mousedown', () => {
+            score += (baseClickValue * clickMultiplier);
+            playMechanicalClick();
+            updateUI();
+        });
+
+        // Klavye Desteği
+        document.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) {
+                mainClickerEl.classList.add('forced-active');
+                score += (baseClickValue * clickMultiplier);
+                playMechanicalClick();
+                updateUI();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                mainClickerEl.classList.remove('forced-active');
+            }
+        });
+
+        // --- Geliştirme Satın Alımları ---
+        btnExtra.addEventListener('click', () => {
+            if (score >= extraCost) {
+                score -= extraCost;
+                baseClickValue += 2;
+                extraCost += 25;
+                playMechanicalClick();
+                updateUI();
+            }
+        });
+
+        btnDouble.addEventListener('click', () => {
+            if (score >= doubleCost) {
+                score -= doubleCost;
+                clickMultiplier *= 2;
+                doubleCost += 100;
+                playMechanicalClick();
+                updateUI();
+            }
+        });
+
+        // --- Mağaza Etkileşim Yönetimi ---
+        shopItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const skin = item.dataset.skin;
+                const cost = parseInt(item.dataset.cost);
+
+                if (skinsOwned[skin]) {
+                    // Zaten alınmışsa sadece kuşan
+                    currentSkin = skin;
+                    mainClickerEl.className = `keyboard-key skin-${skin}`;
+                    playMechanicalClick();
+                } else if (score >= cost) {
+                    // Satın al
+                    score -= cost;
+                    skinsOwned[skin] = true;
+                    currentSkin = skin;
+                    mainClickerEl.className = `keyboard-key skin-${skin}`;
+                    playMechanicalClick();
+                }
+                updateUI();
+            });
+        });
+
+        // --- Ses Açma / Kapama Düzenlemesi ---
+        btnSound.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                // Ses Açık İkonu
+                soundIcon.innerHTML = `<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>`;
+                btnSound.style.background = "white";
+            } else {
+                // Ses Kapalı İkonu
+                soundIcon.innerHTML = `<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>`;
+                btnSound.style.background = "#ffeaa7";
+            }
+        });
+
+        // --- Tüm Verileri Sıfırlama ---
+        btnReset.addEventListener('click', () => {
+            score = 0;
+            baseClickValue = 1;
+            clickMultiplier = 1;
+            extraCost = 50;
+            doubleCost = 200;
+            currentSkin = 'default';
+            mainClickerEl.className = 'keyboard-key skin-default';
+            
+            // Başlangıç skinleri hariç her şeyi kilitle
+            for (const key in skinsOwned) {
+                skinsOwned[key] = (key === 'default');
+            }
+            
+            updateUI();
+        });
+
+        // Oyunu İlk Kurulumla Başlat
+        updateUI();
+    </script>
+</body>
+</html>

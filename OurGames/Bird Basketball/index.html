@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Wings - Phoenix & Danger Zone</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            color: #fff;
+            font-size: 20px;
+            text-shadow: 0 0 10px #fff;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #marketBtn {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00FFFF;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            box-shadow: 0 0 15px #00FFFF;
+            z-index: 20;
+            transition: 0.2s;
+        }
+        #marketBtn:hover { transform: scale(1.1); }
+
+        #marketMenu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            background: rgba(0, 5, 20, 0.98);
+            border: 3px solid #00FFFF;
+            box-shadow: 0 0 40px #00FFFF;
+            border-radius: 20px;
+            padding: 20px;
+            color: #fff;
+            display: none;
+            text-align: center;
+            z-index: 30;
+        }
+
+        .upgrade-item {
+            border: 2px solid #00FFFF;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+            background: rgba(0, 255, 255, 0.05);
+        }
+        .upgrade-item:hover { background: rgba(0, 255, 255, 0.2); }
+        .upgrade-item.disabled { border-color: #444; color: #666; cursor: not-allowed; background: none; }
+
+        .btn-close {
+            background: #ff0055;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            display: none;
+            background: rgba(0,0,0,0.95);
+            padding: 40px;
+            border: 3px solid #FFD700;
+            border-radius: 20px;
+            z-index: 40;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div style="color: #FFD700;">💰 Coin: <span id="moneyDisplay">0</span></div>
+        <div>Score: <span id="scoreDisplay">0</span> | Ball: <span id="ballsDisplay">5</span></div>
+    </div>
+
+    <div id="marketBtn" onclick="toggleMarket()">🛒</div>
+
+    <div id="marketMenu">
+        <h2 style="color:#00FFFF; margin-top:0;">NEON SHOP</h2>
+        
+        <div id="upgBigBall" class="upgrade-item" onclick="buyUpgrade('bigBall', 15)">
+            <strong>Giant Ball (15 Coins)</strong><br><small>A huge ball—just like a gift!</small>
+        </div>
+
+        <div id="upgFastBall" class="upgrade-item" onclick="buyUpgrade('fastBall', 20)">
+            <strong>Rapid Fire (20 Coins)</strong><br><small>The ball falls 50% faster</small>
+        </div>
+
+        <div id="upgGreenHoop" class="upgrade-item" onclick="buyUpgrade('greenHoop', 20)">
+            <strong>Green Pot (20 Coins)</strong><br><small>It’s rare, but it gives a perfect 5!</small>
+        </div>
+
+        <button class="btn-close" onclick="toggleMarket()">Close</button>
+    </div>
+    
+    <div id="gameOver">
+        <h1 style="color: #FFD700;">GAME OVER</h1>
+        <p id="convertText"></p>
+        <button style="padding:10px 20px; cursor:pointer;" onclick="location.reload()">RESTART</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- OYUN AYARLARI VE LOCALSTORAGE ---
+let score = 0, ballsLeft = 5, isGameOver = false, marketOpen = false;
+
+// LocalStorage'dan kalıcı verileri yükle
+let totalMoney = parseInt(localStorage.getItem('neonMoney'));
+if (isNaN(totalMoney)) totalMoney = 10; 
+
+let upg = {
+    bigBall: localStorage.getItem('upg_bigBall') === 'true',
+    fastBall: localStorage.getItem('upg_fastBall') === 'true',
+    greenHoop: localStorage.getItem('upg_greenHoop') === 'true'
+};
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function updateUI() {
+    document.getElementById('moneyDisplay').innerText = totalMoney;
+    document.getElementById('scoreDisplay').innerText = score; // Oyun başlangıcında skor sıfırlansın
+    document.getElementById('ballsDisplay').innerText = ballsLeft; // Oyun başlangıcında top hakkı sıfırlansın
+
+    if (upg.bigBall) document.getElementById('upgBigBall').classList.add('disabled');
+    if (upg.fastBall) document.getElementById('upgFastBall').classList.add('disabled');
+    if (upg.greenHoop) document.getElementById('upgGreenHoop').classList.add('disabled');
+}
+updateUI(); // UI'ı ilk açılışta günceller
+
+let stars = [], hoops = [], activeBalls = [], particles = [], bombs = [];
+for(let i = 0; i < 100; i++) stars.push({x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: Math.random()*2});
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x; this.y = y;
+        this.color = color || "#FF0000";
+        this.speedX = (Math.random()-0.5)*10;
+        this.speedY = (Math.random()-0.5)*10;
+        this.life = 1.0;
+    }
+    draw() {
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+}
+
+class Ball {
+    constructor(x, y) {
+        this.x = x; this.y = y;
+        this.radius = upg.bigBall ? 20 : 12;
+        this.speedY = upg.fastBall ? 12 : 8;
+        this.hit = false;
+        this.active = true;
+    }
+    draw() {
+        ctx.shadowBlur = 15; ctx.shadowColor = "#FF4500";
+        ctx.fillStyle = "#FF4500";
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+class Hoop {
+    constructor() {
+        this.x = canvas.width + 100;
+        this.y = 300 + Math.random()*(canvas.height-400);
+        this.w = 100;
+        this.speed = 5;
+        
+        let rand = Math.random();
+        if (upg.greenHoop && rand < 0.15) { 
+            this.color = '#00FF00'; this.pts = 5;
+        } else if (rand > 0.6) {
+            this.color = '#FFFF00'; this.pts = 2;
+        } else {
+            this.color = '#00FFFF'; this.pts = 1;
+        }
+    }
+    draw() {
+        ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+        ctx.strokeStyle = this.color; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(this.x + 50, this.y, 50, 12, 0, 0, Math.PI*2); ctx.stroke();
+    }
+    update() { this.x -= this.speed; }
+}
+
+class Bomb {
+    constructor() {
+        this.x = canvas.width + 150; // Potaların biraz gerisinde başlasın
+        this.y = 200 + Math.random() * (canvas.height - 300);
+        this.radius = 15;
+        this.speed = 4.5;
+        this.angle = 0;
+        this.rotationSpeed = 0.1; // Kendi etrafında dönme hızı
+        this.rotationRadius = 25; // Ana bombanın etrafında dönen bombaların mesafesi
+        this.bombs = [
+            {angleOffset: 0, x: 0, y: 0},
+            {angleOffset: Math.PI, x: 0, y: 0}
+        ];
+    }
+    draw() {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "#FF0000";
+        this.bombs.forEach(bomb => {
+            ctx.fillStyle = "#FF0000";
+            ctx.beginPath();
+            ctx.arc(bomb.x, bomb.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            // Küçük yıldız veya çarpı işareti (isteğe bağlı)
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(bomb.x - 5, bomb.y); ctx.lineTo(bomb.x + 5, bomb.y);
+            ctx.moveTo(bomb.x, bomb.y - 5); ctx.lineTo(bomb.x, bomb.y + 5);
+            ctx.stroke();
+        });
+    }
+    update() {
+        this.x -= this.speed;
+        this.angle += this.rotationSpeed;
+        this.bombs.forEach(bomb => {
+            bomb.x = this.x + Math.cos(this.angle + bomb.angleOffset) * this.rotationRadius;
+            bomb.y = this.y + Math.sin(this.angle + bomb.angleOffset) * this.rotationRadius;
+        });
+    }
+}
+
+
+function drawBird() {
+    const bx = canvas.width * 0.45, by = 130;
+    
+    // Sarı Enerji Halkası
+    ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 2; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.ellipse(bx, by+15, 60, 25, 0, 0, Math.PI*2); ctx.stroke();
+    
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = "#fff";
+    ctx.fillStyle = "#fff";
+
+    let wingSweep = Math.sin(Date.now() * 0.008) * 0.8; // Daha yumuşak kanat çırpma
+
+    // Gövde
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 30, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Kafa
+    ctx.beginPath();
+    ctx.arc(28, -8, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Gaga
+    ctx.fillStyle = "#FFD700";
+    ctx.beginPath();
+    ctx.moveTo(35, -8);
+    ctx.lineTo(45, -5);
+    ctx.lineTo(35, -2);
+    ctx.fill();
+
+    // Kuyruk (daha detaylı)
+    ctx.beginPath();
+    ctx.moveTo(-30, 0);
+    ctx.lineTo(-50, 10 + wingSweep * 5);
+    ctx.lineTo(-60, 0);
+    ctx.lineTo(-50, -10 - wingSweep * 5);
+    ctx.closePath();
+    ctx.fill();
+
+
+    // Kanatlar (daha detaylı)
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(-10, -5);
+    ctx.quadraticCurveTo(-20, -60 * Math.abs(wingSweep), -50, -20);
+    ctx.quadraticCurveTo(-20, -10, 0, -5); // Kapatma noktası
+    ctx.fill();
+
+    ctx.restore();
+
+    // Ayaktaki Top
+    if(ballsLeft > 0 && !isGameOver) {
+        ctx.beginPath();
+        ctx.arc(bx, by + 25, upg.bigBall ? 20 : 12, 0, Math.PI * 2);
+        ctx.fillStyle = "#FF4500";
+        ctx.shadowColor = "#FF4500";
+        ctx.shadowBlur = 15;
+        ctx.fill();
+    }
+}
+
+function buyUpgrade(type, cost) {
+    if (!upg[type] && totalMoney >= cost) {
+        totalMoney -= cost;
+        upg[type] = true;
+        localStorage.setItem('neonMoney', totalMoney);
+        localStorage.setItem('upg_' + type, 'true');
+        updateUI();
+    }
+}
+
+function toggleMarket() {
+    marketOpen = !marketOpen;
+    document.getElementById('marketMenu').style.display = marketOpen ? 'block' : 'none';
+}
+
+function update() {
+    if (isGameOver || marketOpen) { requestAnimationFrame(update); return; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    stars.forEach(s => { ctx.fillStyle="#fff"; ctx.fillRect(s.x, s.y, s.size, s.size); });
+    
+    drawBird();
+
+    if(Math.random() < 0.018) hoops.push(new Hoop());
+    if(Math.random() < 0.005) bombs.push(new Bomb()); // Bombalar nadiren çıksın
+
+    hoops.forEach((h, i) => {
+        h.update(); h.draw();
+        if(h.x < -100) hoops.splice(i, 1);
+    });
+
+    bombs.forEach((b, i) => {
+        b.update(); b.draw();
+        if(b.x < -100) bombs.splice(i, 1);
+    });
+
+
+    activeBalls.forEach((b, i) => {
+        b.y += b.speedY; b.draw();
+
+        // Pota Çarpışması
+        hoops.forEach(h => {
+            if(!b.hit && b.y > h.y-15 && b.y < h.y+15 && b.x > h.x && b.x < h.x+h.w) {
+                score += h.pts;
+                b.hit = true;
+                for(let k=0; k<20; k++) particles.push(new Particle(b.x, b.y, h.color));
+                document.getElementById('scoreDisplay').innerText = score;
+            }
+        });
+
+        // Bomba Çarpışması
+        bombs.forEach(bombPair => {
+            bombPair.bombs.forEach(singleBomb => {
+                const dx = b.x - singleBomb.x;
+                const dy = b.y - singleBomb.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < b.radius + bombPair.radius && !b.hit) {
+                    score -= 2;
+                    if (score < 0) score = 0; // Puanın sıfırın altına düşmesini engelle
+                    b.hit = true;
+                    for(let k=0; k<25; k++) particles.push(new Particle(b.x, b.y, "#FF0000"));
+                    document.getElementById('scoreDisplay').innerText = score;
+                }
+            });
+        });
+
+        if(b.y > canvas.height) activeBalls.splice(i, 1);
+    });
+
+    particles.forEach((p, i) => {
+        p.x += p.speedX; p.y += p.speedY; p.life -= 0.02; p.draw();
+        if(p.life <= 0) particles.splice(i, 1);
+    });
+
+    if(ballsLeft === 0 && activeBalls.length === 0) {
+        isGameOver = true;
+        totalMoney += score; 
+        localStorage.setItem('neonMoney', totalMoney);
+        document.getElementById('convertText').innerText = `The Game is Over!  You've earned ${score} points and ${score} coins.`;
+        document.getElementById('gameOver').style.display = 'block';
+    }
+    requestAnimationFrame(update);
+}
+
+window.addEventListener('mousedown', (e) => {
+    if(marketOpen || isGameOver || e.target.closest('#marketBtn') || e.target.closest('.upgrade-item')) return;
+    if(ballsLeft > 0) {
+        activeBalls.push(new Ball(canvas.width * 0.45, 150));
+        ballsLeft--;
+        document.getElementById('ballsDisplay').innerText = ballsLeft;
+    }
+});
+
+update();
+</script>
+</body>
+</html>

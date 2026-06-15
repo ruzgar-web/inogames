@@ -1,0 +1,1119 @@
+html_content = """<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>BACKROOMS: THE WHITE HELL PRO</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; user-select: none; }
+        
+        #brand-watermark {
+            position: fixed; bottom: 15px; right: 20px; color: rgba(255, 255, 255, 0.4);
+            font-size: 14px; font-weight: bold; z-index: 9999; pointer-events: none; letter-spacing: 2px;
+        }
+        
+        #ui {
+            position: fixed; top: 20px; left: 20px; color: #0f0; 
+            background: rgba(0,0,0,0.85); padding: 12px; border: 2px solid #0f0;
+            z-index: 600; font-size: 14px; pointer-events: none; border-radius: 4px;
+        }
+        #shop-panel {
+            position: fixed; top: 20px; right: 20px; width: 240px;
+            background: rgba(25, 25, 10, 0.9); border: 2px solid #f0e68c;
+            padding: 15px; z-index: 1000; color: #fff; border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.7);
+        }
+        #overlay, #death-screen, #win-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000;
+        }
+        #overlay { background: radial-gradient(circle, #a98000 0%, #222 100%); color: #fff; }
+        .brand-title { font-size: 16px; color: #ffdd00; letter-spacing: 5px; margin-bottom: 10px; text-shadow: 0 0 10px #000; }
+        #death-screen { background: rgba(90, 0, 0, 0.95); color: #fff; display: none; }
+        #win-screen { background: rgba(0, 70, 40, 0.95); color: #fff; display: none; }
+        #red-vignette { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 500; transition: opacity 0.1s; }
+        
+        #scare-text {
+            position: fixed; top: 20%; left: 50%; transform: translate(-50%, -50%);
+            color: #ff0000; font-size: 55px; font-weight: 900; text-align: center;
+            text-shadow: 4px 4px 0px #000, -4px -4px 0px #330000; z-index: 1500; display: none;
+            letter-spacing: 8px; animation: superGlitch 0.1s infinite;
+        }
+        @keyframes superGlitch {
+            0% { transform: translate(-50%, -50%) skewX(0deg); filter: blur(0px); }
+            20% { transform: translate(-49%, -52%) skewX(5deg); filter: blur(1px); }
+            40% { transform: translate(-52%, -48%) skewX(-5deg); }
+            60% { transform: translate(-50%, -50%) skewY(3deg); filter: blur(0px); }
+            80% { transform: translate(-51%, -51%) skewX(2deg); }
+            100% { transform: translate(-48%, -49%) skewX(-3deg); }
+        }
+        button.main-btn { padding: 15px 30px; font-size: 20px; cursor: pointer; background: #430; color: #f0e68c; border: 2px solid #f0e68c; font-weight: bold; transition: 0.2s; }
+        button.main-btn:hover { background: #640; color: #fff; transform: scale(1.05); }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    
+
+    <div id="ui">
+        SCRAP: <span id="money-display">0</span> ⚙️<br>
+        SHOCK: <span id="s-stat">READY</span><br>
+        LIGHT: <span id="f-stat">OPEN (F)</span>
+    </div>
+
+    <div id="shop-panel">
+        <h2>ENGINEERING</h2>
+        <button class="buy-btn" style="width:100%; margin-bottom:10px; cursor:pointer;" onclick="upgrade('range')">🔦 FOCAL LENGTH (50H)</button>
+        <button class="buy-btn" style="width:100%; cursor:pointer;" onclick="upgrade('power')">💡 LUMEN OUTPUT (75H)</button>
+    </div>
+
+    <div id="red-vignette"></div>
+    <div id="scare-text">YOU CAN'T WALK, CAN YOU?</div>
+
+    <div id="overlay">
+       
+        <h1 style="font-size: 50px; margin: 10px 0; letter-spacing: 10px;">THE WHITE HELL PRO</h1>
+        <p style="font-size: 16px; margin-bottom: 30px; color: #ccc;">Ultra-Dense Structural Code Development v6.0</p>
+        <button class="main-btn" onclick="startGame()">START THE SIMULATION</button>
+    </div>
+
+    <div id="death-screen">
+        <h1 style="font-size: 70px;">THE NIGHTMARE HAS SWALLOWED YOU!</h1>
+        <button class="main-btn" onclick="location.reload()">REBOOT THE SYSTEM</button>
+    </div>
+
+    <div id="win-screen">
+        <h1 style="font-size: 55px; color: #00ff00; letter-spacing: 5px;">THE PERFECT ESCAPE!</h1>
+        <p style="font-size: 20px; color: #fff; margin-bottom: 25px;">You managed to escape by getting past all the rooms and nightmares!</p>
+        <button class="main-btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// Küresel Mimari Tanımlamaları ve Durum Yönetimi
+let scene, camera, renderer, mazeMonster, flashLight, exitPoint;
+let posX = 2, posZ = 2, angle = 0;
+let gameActive = false, stunReady = true, monsterStun = 0;
+let monsterPos = { x: 25, z: 25 };
+let wallLights = [], environmentalAssets = [];
+let currentLevel = "maze"; 
+
+// Havuz Bölümü Değişkenleri
+let poolMonsters = [];
+const poolMonsterData = [
+    { x: -3, z: -12, real: false },
+    { x: 4, z: -22, real: false },
+    { x: 0, z: -32, real: true } 
+];
+
+// Otel Lobisi Bölümü Değişkenleri
+let hotelSpider;
+let hotelStationaryMonsters = [];
+let spiderState = "ceiling"; 
+let spiderTimer = 0;
+let spiderPos = { x: 0, y: 2.7, z: -15 };
+
+// Koridor Seviyesi Değişkenleri
+let corridorMonster, audioCtx, screamInterval;
+let corridorLength = 350;
+let corridorMonsterZ = -330;
+let corridorStartTime = 0;
+let monsterActivated = false;
+let highAmbientLight;
+
+// SEVİYE 5 (Otel Odaları Seviyesi 2) Değişkenleri
+let map5;
+let level5MonsterMesh;
+let level5MonsterPos = { x: 14.5, z: 18.0 };
+let level5ExitPoint = { x: 23.5, z: 14.5 };
+let quadHopTime = 0;
+
+let money = 0;
+let fRange = 50, fPower = 20, fOn = true;
+
+const keys = {};
+
+// Gelişmiş Harita Matrisi Tanımlaması (Level 1)
+const map = Array(30).fill().map(() => Array(30).fill(0));
+for(let i=0; i<30; i++) { map[0][i] = map[29][i] = map[i][0] = map[i][29] = 1; }
+for(let i=0; i<85; i++) { 
+    const rx = Math.floor(Math.random()*28)+1;
+    const rz = Math.floor(Math.random()*28)+1;
+    if(!(rx < 5 && rz < 5) && !(rx > 25 && rz > 25)) map[rz][rx] = 1; 
+}
+
+// Seviye 5 Matris Tasarımı
+function initMap5() {
+    map5 = Array(30).fill().map(() => Array(30).fill(1));
+    // Ana koridoru aç (Giriş)
+    for(let z = 2; z <= 25; z++) {
+        for(let x = 13; x <= 16; x++) map5[z][x] = 0;
+    }
+    // Sol Oda (Boş Oda)
+    for(let z = 9; z <= 20; z++) {
+        for(let x = 3; x <= 12; x++) map5[z][x] = 0;
+    }
+    // Sağ Oda (Kaçış Odası)
+    for(let z = 9; z <= 20; z++) {
+        for(let x = 17; x <= 26; x++) map5[z][x] = 0;
+    }
+    // Giriş Kapıları / Geçitleri aç
+    map5[14][12] = 0; map5[15][12] = 0; // Sol kapı girişi
+    map5[14][17] = 0; map5[15][17] = 0; // Sağ kapı girişi
+}
+initMap5();
+
+window.addEventListener('keydown', e => { 
+    keys[e.code] = true;
+    if(e.code === 'Space' && stunReady) fireStun();
+    if(e.code === 'KeyF') { 
+        fOn = !fOn; 
+        if(flashLight) flashLight.visible = fOn; 
+        document.getElementById('f-stat').innerText = fOn ? "AÇIK (F)" : "KAPALI (F)"; 
+    }
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function createTextImage(text, color = '#800000', fontSize = '40px') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = `Bold ${fontSize} Courier New`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, 256, 64);
+    return new THREE.CanvasTexture(canvas);
+}
+
+// -------------------------------------------------------------
+// ANATOMİK İNSANSI CANAVAR YAPISI
+// -------------------------------------------------------------
+function createDetailedMonster() {
+    const monsterGroup = new THREE.Group();
+    const blackSkin = new THREE.MeshStandardMaterial({ color: 0x010101, roughness: 1.0, metalness: 0.1 });
+
+    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.3), blackSkin);
+    pelvis.position.y = 0.9;
+    monsterGroup.add(pelvis);
+    monsterGroup.pelvis = pelvis;
+
+    const spineSegments = [];
+    let lastSegment = pelvis;
+    for(let i = 0; i < 5; i++) {
+        const segment = new THREE.Mesh(new THREE.BoxGeometry(0.25 - (i*0.02), 0.15, 0.2), blackSkin);
+        segment.position.set(0, 0.12, -0.01);
+        lastSegment.add(segment);
+        spineSegments.push(segment);
+        lastSegment = segment;
+    }
+    monsterGroup.spine = spineSegments;
+
+    const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.2, 0.6, 8), blackSkin);
+    chest.position.set(0, 0.3, 0.05);
+    lastSegment.add(chest);
+    monsterGroup.chest = chest;
+
+    for(let j = 0; j < 4; j++) {
+        const ribL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.25), blackSkin);
+        ribL.position.set(-0.2, -0.1 + (j*0.1), 0.1);
+        ribL.rotation.z = 0.2;
+        const ribR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.25), blackSkin);
+        ribR.position.set(0.2, -0.1 + (j*0.1), 0.1);
+        ribR.rotation.z = -0.2;
+        chest.add(ribL, ribR);
+    }
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.2), blackSkin);
+    neck.position.set(0, 0.35, 0);
+    chest.add(neck);
+
+    const headGroup = new THREE.Group();
+    headGroup.position.set(0, 0.2, 0.05);
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 16), blackSkin);
+    headGroup.add(skull);
+    
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.18), blackSkin);
+    jaw.position.set(0, -0.15, 0.08);
+    headGroup.add(jaw);
+
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const eL = new THREE.Mesh(new THREE.SphereGeometry(0.035), eyeMat); eL.position.set(-0.09, 0.04, 0.2);
+    const eR = new THREE.Mesh(new THREE.SphereGeometry(0.035), eyeMat); eR.position.set(0.09, 0.04, 0.2);
+    headGroup.add(eL, eR);
+    neck.add(headGroup);
+    monsterGroup.head = headGroup;
+
+    function buildComplexArm(isLeft) {
+        const side = isLeft ? -1 : 1;
+        const shoulder = new THREE.Group();
+        shoulder.position.set(0.35 * side, 0.25, 0);
+        chest.add(shoulder);
+
+        const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.7), blackSkin);
+        upperArm.position.y = -0.3;
+        shoulder.add(upperArm);
+
+        const elbow = new THREE.Group();
+        elbow.position.set(0, -0.35, 0);
+        upperArm.add(elbow);
+
+        const lowerArm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.035, 0.7), blackSkin);
+        lowerArm.position.y = -0.3;
+        elbow.add(lowerArm);
+
+        const hand = new THREE.Group();
+        hand.position.set(0, -0.35, 0);
+        lowerArm.add(hand);
+
+        for(let f = 0; f < 3; f++) {
+            const fingerRoot = new THREE.Group();
+            fingerRoot.position.set((-0.04 + f*0.04), 0, 0);
+            hand.add(fingerRoot);
+            let lastFNode = fingerRoot;
+            for(let ph = 0; ph < 3; ph++) {
+                const phMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.01, 0.15), blackSkin);
+                phMesh.position.y = -0.07;
+                lastFNode.add(phMesh);
+                const nextJoint = new THREE.Group();
+                nextJoint.position.set(0, -0.15, 0);
+                phMesh.add(nextJoint);
+                lastFNode = nextJoint;
+            }
+        }
+        return { shoulder, elbow, hand };
+    }
+
+    function buildComplexLeg(isLeft) {
+        const side = isLeft ? -1 : 1;
+        const hipJoint = new THREE.Group();
+        hipJoint.position.set(0.18 * side, -0.05, 0);
+        pelvis.add(hipJoint);
+
+        const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.6), blackSkin);
+        thigh.position.y = -0.25;
+        hipJoint.add(thigh);
+
+        const knee = new THREE.Group();
+        knee.position.set(0, -0.3, 0);
+        thigh.add(knee);
+
+        const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 0.6), blackSkin);
+        shin.position.y = -0.25;
+        knee.add(shin);
+
+        const ankle = new THREE.Group();
+        ankle.position.set(0, -0.3, 0);
+        shin.add(ankle);
+
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.25), blackSkin);
+        foot.position.set(0, -0.02, 0.06);
+        ankle.add(foot);
+
+        return { hip: hipJoint, knee: knee, ankle: ankle };
+    }
+
+    monsterGroup.armL = buildComplexArm(true);
+    monsterGroup.armR = buildComplexArm(false);
+    monsterGroup.legL = buildComplexLeg(true);
+    monsterGroup.legR = buildComplexLeg(false);
+
+    return monsterGroup;
+}
+
+// -------------------------------------------------------------
+// DÜZGÜN VE UZUN BACAKLI, BELİRGİN DİZLİ ÖRÜMCEK SİMÜLASYONU
+// -------------------------------------------------------------
+function createSpiderMonster() {
+    const spiderGroup = new THREE.Group();
+    const spiderMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 0.85, metalness: 0.2 });
+    const redEyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+    const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 12), spiderMat);
+    abdomen.position.set(0, 0, -0.3);
+    abdomen.scale.set(1, 0.7, 1.5);
+    spiderGroup.add(abdomen);
+
+    const cephalo = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12), spiderMat);
+    cephalo.position.set(0, 0.04, 0.3);
+    spiderGroup.add(cephalo);
+
+    const eyePositions = [
+        {x: -0.09, y: 0.12, z: 0.48, r: 0.04}, {x: 0.09, y: 0.12, z: 0.48, r: 0.04},
+        {x: -0.15, y: 0.07, z: 0.44, r: 0.025}, {x: 0.15, y: 0.07, z: 0.44, r: 0.025},
+        {x: -0.05, y: 0.18, z: 0.46, r: 0.02}, {x: 0.05, y: 0.18, z: 0.46, r: 0.02}
+    ];
+    eyePositions.forEach(pos => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(pos.r, 8, 8), redEyeMat);
+        eye.position.set(pos.x, pos.y, pos.z);
+        spiderGroup.add(eye);
+    });
+
+    const fL = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.15, 4), spiderMat);
+    fL.position.set(-0.06, -0.08, 0.46); fL.rotation.x = Math.PI/4;
+    const fR = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.15, 4), spiderMat);
+    fR.position.set(0.06, -0.08, 0.46); fR.rotation.x = Math.PI/4;
+    spiderGroup.add(fL, fR);
+
+    spiderGroup.legs = [];
+    for (let i = 0; i < 8; i++) {
+        const isLeft = i < 4;
+        const side = isLeft ? -1 : 1;
+        const index = i % 4; 
+
+        const legRoot = new THREE.Group();
+        legRoot.position.set(0.18 * side, 0.02, 0.3 - (index * 0.2));
+
+        const upperLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.016, 0.75), spiderMat);
+        upperLeg.position.set(0.28 * side, 0.28, 0);
+        upperLeg.rotation.z = (Math.PI / 3.2) * side; 
+        upperLeg.rotation.y = (Math.PI / 6.5) * (index - 1.5) * side;
+        legRoot.add(upperLeg);
+
+        const kneeGroup = new THREE.Group();
+        kneeGroup.position.set(0, 0.38, 0); 
+        upperLeg.add(kneeGroup);
+
+        const lowerLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.006, 0.95), spiderMat);
+        lowerLeg.position.set(0.32 * side, -0.42, 0);
+        lowerLeg.rotation.z = -(Math.PI / 1.7) * side; 
+        kneeGroup.add(lowerLeg);
+
+        spiderGroup.add(legRoot);
+        spiderGroup.legs.push({ root: legRoot, knee: kneeGroup, index: index, side: side });
+    }
+
+    return spiderGroup;
+}
+
+// DÖRT AYAKLI (KAPLAN/ASLAN DURUŞLU) SEVİYE 5 CANAVARI
+function createQuadrupedalMonster() {
+    const qGroup = createDetailedMonster();
+    
+    // Pelvisi yere yaklaştır ve gövdeyi yatay yap
+    qGroup.pelvis.position.y = 0.35;
+    qGroup.pelvis.rotation.x = Math.PI / 2; // Omurgayı yatay eksene çevir
+    
+    // Kolları ön bacaklara çevir, omuz eklemlerini öne kaydırıp yere uzat
+    qGroup.armL.shoulder.position.set(-0.25, 0.5, 0.2);
+    qGroup.armL.shoulder.rotation.x = -Math.PI / 2;
+    qGroup.armL.elbow.rotation.x = 0.4;
+    
+    qGroup.armR.shoulder.position.set(0.25, 0.5, 0.2);
+    qGroup.armR.shoulder.rotation.x = -Math.PI / 2;
+    qGroup.armR.elbow.rotation.x = 0.4;
+
+    // Arka bacakları düzgün dört ayak pozisyonuna getir
+    qGroup.legL.hip.position.set(-0.18, -0.1, -0.1);
+    qGroup.legL.hip.rotation.x = -Math.PI / 4;
+    qGroup.legL.knee.rotation.x = Math.PI / 3;
+
+    qGroup.legR.hip.position.set(0.18, -0.1, -0.1);
+    qGroup.legR.hip.rotation.x = -Math.PI / 4;
+    qGroup.legR.knee.rotation.x = Math.PI / 3;
+    
+    // Kafayı yukarı kaldır ki dört ayak üzerindeyken karşıya bakabilsin
+    qGroup.head.rotation.x = -Math.PI / 3;
+
+    return qGroup;
+}
+
+function populateStructuralDetails() {
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x6e6200, roughness: 0.9 });
+    const pipeMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7 });
+
+    for (let r = 0; r < 30; r++) {
+        for (let c = 0; c < 30; c++) {
+            if (map[r][c] === 1) {
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), wallMat);
+                wall.position.set(c, 1.5, r); 
+                scene.add(wall);
+                
+                if(r > 0 && r < 29 && c > 0 && c < 29) {
+                    if(Math.random() < 0.25) {
+                        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1), pipeMat);
+                        pipe.rotation.z = Math.PI / 2;
+                        pipe.position.set(c, 2.7, r + (Math.random()*0.4 - 0.2));
+                        scene.add(pipe);
+                        environmentalAssets.push(pipe);
+                    }
+                    if(Math.random() < 0.15) {
+                        const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.6), plateMat);
+                        plate.position.set(c, 1.2, r + 0.51);
+                        scene.add(plate);
+                        environmentalAssets.push(plate);
+                    }
+                }
+
+                if (Math.random() < 0.12 && map[r][c+1] === 0) {
+                    addWallLight(c + 0.48, r, Math.PI / 2);
+                }
+            } else {
+                if(Math.random() < 0.04) {
+                    const boxGeo = new THREE.BoxGeometry(0.6, 0.08, 0.2);
+                    const boxMat = new THREE.MeshStandardMaterial({ color: 0x2e2b14 });
+                    const hang = new THREE.Mesh(boxGeo, boxMat);
+                    hang.position.set(c, 2.95, r);
+                    scene.add(hang);
+                    environmentalAssets.push(hang);
+                }
+            }
+        }
+    }
+}
+
+function addExitDoor(x, z) {
+    const doorGroup = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.1), new THREE.MeshStandardMaterial({color: 0x002200, emissive: 0x00bb00, emissiveIntensity: 0.4}));
+    doorGroup.add(frame);
+    const signTex = createTextImage("EXIT", "#00ff00", "80px");
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.3), new THREE.MeshBasicMaterial({map: signTex, transparent: true}));
+    sign.position.set(0, 1.2, 0.06);
+    doorGroup.add(sign);
+    doorGroup.position.set(x, 1.1, z);
+    scene.add(doorGroup);
+    exitPoint = { x, z };
+}
+
+function addWallLight(x, z, rY) {
+    const group = new THREE.Group();
+    const light = new THREE.PointLight(0xffdd99, 2.2, 7);
+    light.position.set(0, 0, 0.1);
+    group.add(light);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03), new THREE.MeshBasicMaterial({color: 0xfff5cc}));
+    group.add(bulb);
+    group.position.set(x, 2.2, z);
+    group.rotation.y = rY;
+    scene.add(group);
+    wallLights.push({ light, bulb, originalIntensity: 2.2 });
+}
+
+// -------------------------------------------------------------
+// BÖLÜM 2: HAVUZ ODALARI (POOLROOMS) SİMÜLASYONU
+// -------------------------------------------------------------
+function goToPoolLevel() {
+    currentLevel = "pool";
+    gameActive = false;
+    
+    while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+    
+    scene.background = new THREE.Color(0x0a1c24);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+    scene.add(camera);
+    
+    const poolWallMat = new THREE.MeshStandardMaterial({ color: 0xe0f2f1, roughness: 0.1 });
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, roughness: 0.05, metalness: 0.2 });
+    
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 80), waterMat);
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -30); scene.add(floor);
+    
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 80), poolWallMat);
+    leftWall.position.set(-12, 2, -30); scene.add(leftWall);
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4, 80), poolWallMat);
+    rightWall.position.set(12, 2, -30); scene.add(rightWall);
+    
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(24, 4, 0.1), poolWallMat);
+    backWall.position.set(0, 2, 1); scene.add(backWall);
+
+    for(let z = -10; z >= -50; z -= 15) {
+        const col1 = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), poolWallMat);
+        col1.position.set(-5, 2, z); scene.add(col1);
+        const col2 = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), poolWallMat);
+        col2.position.set(5, 2, z); scene.add(col2);
+    }
+    
+    poolMonsters = [];
+    poolMonsterData.forEach(data => {
+        const m = createDetailedMonster();
+        m.position.set(data.x, 0, data.z);
+        scene.add(m);
+        poolMonsters.push({ 
+            mesh: m, x: data.x, z: data.z, real: data.real,
+            state: "chasing", crouchTimer: 0, leapTimer: 0, cooldown: 0, dashDir: {x:0, z:0}
+        });
+    });
+    
+    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, 0.1), new THREE.MeshStandardMaterial({color: 0x004d40, emissive: 0x00e5ff}));
+    doorFrame.position.set(0, 1.2, -69.9);
+    scene.add(doorFrame);
+    
+    posX = 0; posZ = 0; angle = 0;
+    camera.position.set(0, 1.4, 0); camera.rotation.set(0, Math.PI, 0);
+    gameActive = true;
+}
+
+// -------------------------------------------------------------
+// BÖLÜM 3: OTEL LOBİSİ & ÖRÜMCEK SİMÜLASYONU
+// -------------------------------------------------------------
+function goToHotelLobby() {
+    currentLevel = "hotel";
+    gameActive = false;
+    spiderTimer = 0;
+    spiderState = "ceiling";
+    
+    while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+    
+    scene.background = new THREE.Color(0x3a3014);
+    scene.add(new THREE.AmbientLight(0xffe57f, 0.15));
+    scene.add(camera);
+    
+    const hotelWallMat = new THREE.MeshStandardMaterial({ color: 0x8c7637, roughness: 0.8 }); 
+    const carpetMat = new THREE.MeshStandardMaterial({ color: 0x5e4c1c, roughness: 0.9 }); 
+    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x827035, roughness: 0.7 });
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 40), carpetMat);
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -20); scene.add(floor);
+    
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(36, 40), ceilingMat);
+    ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, 3.0, -20); scene.add(ceiling);
+
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 40), hotelWallMat); leftWall.position.set(-18, 1.5, -20); scene.add(leftWall);
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3, 40), hotelWallMat); rightWall.position.set(18, 1.5, -20); scene.add(rightWall);
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(36, 3, 0.1), hotelWallMat); backWall.position.set(0, 1.5, 0); scene.add(backWall);
+    const frontWall = new THREE.Mesh(new THREE.BoxGeometry(36, 3, 0.1), hotelWallMat); frontWall.position.set(0, 1.5, -40); scene.add(frontWall);
+
+    const columnPositions = [
+        {x: -12, z: -8}, {x: -4, z: -8}, {x: 4, z: -8}, {x: 12, z: -8},
+        {x: -12, z: -18}, {x: -4, z: -18}, {x: 4, z: -18}, {x: 12, z: -18},
+        {x: -12, z: -28}, {x: -4, z: -28}, {x: 4, z: -28}, {x: 12, z: -28},
+    ];
+
+    columnPositions.forEach(pos => {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(1.8, 3, 1.8), hotelWallMat);
+        col.position.set(pos.x, 1.5, pos.z);
+        scene.add(col);
+    });
+
+    hotelStationaryMonsters = [];
+    const stationaryPositions = [
+        {x: -10, z: -12}, {x: 10, z: -10}, {x: -5, z: -22}, {x: 6, z: -25},
+        {x: -14, z: -32}, {x: 14, z: -30}, {x: 0, z: -14}, {x: -12, z: -5}
+    ];
+
+    stationaryPositions.forEach(pos => {
+        const sm = createDetailedMonster();
+        sm.position.set(pos.x, 0, pos.z);
+        sm.rotation.y = Math.random() * Math.PI * 2;
+        scene.add(sm);
+        hotelStationaryMonsters.push(sm);
+    });
+
+    hotelSpider = createSpiderMonster();
+    spiderPos = { x: 0, y: 2.7, z: -20 };
+    hotelSpider.position.set(spiderPos.x, spiderPos.y, spiderPos.z);
+    scene.add(hotelSpider);
+
+    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.1), new THREE.MeshStandardMaterial({color: 0x330000, emissive: 0xaa0000}));
+    doorFrame.position.set(0, 1.2, -39.9);
+    scene.add(doorFrame);
+
+    posX = 0; posZ = -2; angle = 0;
+    camera.position.set(posX, 1.4, posZ); camera.rotation.set(0, Math.PI, 0);
+    gameActive = true;
+}
+
+function playAdvancedRoboticScream() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let now = audioCtx.currentTime;
+        let osc1 = audioCtx.createOscillator();
+        let mainGain = audioCtx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(450, now);
+        osc1.frequency.exponentialRampToValueAtTime(60, now + 1.4);
+        mainGain.gain.setValueAtTime(0.95, now);
+        mainGain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+        osc1.connect(mainGain);
+        mainGain.connect(audioCtx.destination);
+        osc1.start(now); osc1.stop(now + 1.4);
+    } catch(err) {}
+}
+
+// -------------------------------------------------------------
+// BÖLÜM 4: YÜRÜYEMEDİĞİMİZ SON KORIDOR
+// -------------------------------------------------------------
+function goToCorridorLevel() {
+    currentLevel = "corridor";
+    gameActive = false;
+    corridorStartTime = Date.now();
+    monsterActivated = false;
+    
+    while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+    
+    scene.background = new THREE.Color(0xf5f2eb);
+    scene.fog = new THREE.FogExp2(0xf5f2eb, 0.008);
+    
+    highAmbientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    scene.add(highAmbientLight);
+    scene.add(camera);
+    
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xfaf8f2, roughness: 0.3 }); 
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(8, corridorLength), new THREE.MeshStandardMaterial({ color: 0xded0ba, roughness: 0.7 })); 
+    floor.rotation.x = -Math.PI/2; floor.position.set(0, 0, -corridorLength/2); scene.add(floor);
+    
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.6, corridorLength), wallMat);
+    leftWall.position.set(-4, 1.8, -corridorLength/2); scene.add(leftWall);
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.6, corridorLength), wallMat);
+    rightWall.position.set(4, 1.8, -corridorLength/2); scene.add(rightWall);
+
+    corridorMonster = createDetailedMonster();
+    corridorMonster.position.set(0, 0, corridorMonsterZ);
+    scene.add(corridorMonster);
+    
+    posX = 0; posZ = -1; angle = 0;
+    camera.position.set(posX, 1.7, posZ);
+    camera.rotation.set(0, Math.PI, 0);
+    camera.fov = 75; camera.updateProjectionMatrix();
+    
+    document.getElementById('scare-text').style.display = 'block';
+    
+    playAdvancedRoboticScream();
+    screamInterval = setInterval(() => {
+        if(currentLevel === "corridor" && !monsterActivated) { playAdvancedRoboticScream(); } 
+        else { clearInterval(screamInterval); }
+    }, 1000);
+    
+    gameActive = true;
+}
+
+// -------------------------------------------------------------
+// YENİ SEVİYE 5: OTEL ODALARI (İKİ ODA & ZIPLAYAN CANAVAR)
+// -------------------------------------------------------------
+function goToLevel5() {
+    currentLevel = "level5";
+    gameActive = false;
+    document.getElementById('scare-text').style.display = 'none';
+    if(screamInterval) clearInterval(screamInterval);
+
+    while(scene.children.length > 0){ scene.remove(scene.children[0]); }
+
+    scene.background = new THREE.Color(0x302510);
+    scene.fog = null; // Sisi temizle
+    scene.add(new THREE.AmbientLight(0xfff0cc, 0.25));
+    scene.add(camera);
+
+    const wallMat5 = new THREE.MeshStandardMaterial({ color: 0x735a26, roughness: 0.8 }); 
+    const carpetMat5 = new THREE.MeshStandardMaterial({ color: 0x4a3611, roughness: 0.9 }); 
+    const ceilingMat5 = new THREE.MeshStandardMaterial({ color: 0x5e481d, roughness: 0.7 });
+
+    // Duvarları Çiz
+    for (let r = 0; r < 30; r++) {
+        for (let c = 0; c < 30; c++) {
+            if (map5[r][c] === 1) {
+                const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), wallMat5);
+                wall.position.set(c, 1.5, r); 
+                scene.add(wall);
+            } else {
+                // Taban ve Tavan plakaları
+                const fl = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), carpetMat5);
+                fl.rotation.x = -Math.PI / 2; fl.position.set(c, 0.01, r); scene.add(fl);
+                const ce = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), ceilingMat5);
+                ce.rotation.x = Math.PI / 2; ce.position.set(c, 3.0, r); scene.add(ce);
+            }
+        }
+    }
+
+    // Aydınlatma elemanları ekle
+    addWallLight(14.5, 8.0, 0);
+    addWallLight(7.5, 14.5, Math.PI/2);
+    addWallLight(21.5, 14.5, -Math.PI/2);
+
+    // Sağ Odadaki Kaçış Kapısını İnşa Et (x=23.5, z=14.5)
+    const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.3, 0.1), new THREE.MeshStandardMaterial({color: 0x00ff66, emissive: 0x00ff33, emissiveIntensity: 0.6}));
+    doorFrame.position.set(level5ExitPoint.x, 1.15, level5ExitPoint.z);
+    doorFrame.rotation.y = Math.PI / 2;
+    scene.add(doorFrame);
+
+    const escTex = createTextImage("KACIS", "#00ff33", "75px");
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.25), new THREE.MeshBasicMaterial({map: escTex, transparent: true}));
+    sign.position.set(level5ExitPoint.x - 0.06, 2.1, level5ExitPoint.z);
+    sign.rotation.y = Math.PI / 2;
+    scene.add(sign);
+
+    // Kaplan/Köpek Duruşlu Zıplayan Düşmanı Yükle
+    level5MonsterMesh = createQuadrupedalMonster();
+    level5MonsterPos = { x: 14.5, z: 20.0 };
+    level5MonsterMesh.position.set(level5MonsterPos.x, 0, level5MonsterPos.z);
+    scene.add(level5MonsterMesh);
+
+    // Oyuncu Başlangıç Konumu (Ana koridor girişinde)
+    posX = 14.5; posZ = 3.5; angle = 0;
+    camera.fov = 75; camera.updateProjectionMatrix();
+    camera.position.set(posX, 1.4, posZ);
+    camera.rotation.set(0, Math.PI, 0);
+
+    gameActive = true;
+}
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x010101);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.01));
+    
+    flashLight = new THREE.SpotLight(0xfffdf2, fPower, fRange, Math.PI / 5.5, 0.4, 1.2);
+    camera.add(flashLight); camera.add(flashLight.target);
+    flashLight.target.position.set(0, 0, -1);
+    flashLight.visible = fOn;
+    scene.add(camera);
+
+    populateStructuralDetails();
+    addExitDoor(28, 28);
+    
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x030303, roughness: 0.9 }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(15, 0, 15); scene.add(floor);
+
+    mazeMonster = createDetailedMonster();
+    scene.add(mazeMonster);
+}
+
+// -------------------------------------------------------------
+// KİNETİK ANİMASYON MOTORU
+// -------------------------------------------------------------
+function updateMonsterKinematics(mGroup, speed, active) {
+    if(!mGroup || !mGroup.pelvis) return;
+    let time = Date.now() * speed;
+
+    if(active) {
+        if(mGroup.spine && currentLevel !== "level5") {
+            mGroup.spine.forEach((seg, idx) => {
+                seg.rotation.y = Math.sin(time + idx * 0.4) * 0.08;
+                seg.rotation.x = Math.cos(time + idx * 0.3) * 0.04;
+            });
+        }
+
+        if(currentLevel !== "level5") {
+            mGroup.armL.shoulder.rotation.x = Math.sin(time) * 1.3;
+            mGroup.armL.shoulder.rotation.z = Math.cos(time * 0.5) * 0.2 - 0.2;
+            mGroup.armL.elbow.rotation.x = -Math.abs(Math.sin(time)) * 0.8;
+
+            mGroup.armR.shoulder.rotation.x = Math.sin(time + Math.PI) * 1.3;
+            mGroup.armR.shoulder.rotation.z = -Math.cos(time * 0.5) * 0.2 + 0.2;
+            mGroup.armR.elbow.rotation.x = -Math.abs(Math.sin(time + Math.PI)) * 0.8;
+
+            mGroup.legL.hip.rotation.x = Math.sin(time + Math.PI) * 0.9;
+            mGroup.legL.knee.rotation.x = (Math.sin(time + Math.PI / 2) + 1) * 0.5; 
+            mGroup.legL.ankle.rotation.x = Math.sin(time + Math.PI) * 0.2;
+
+            mGroup.legR.hip.rotation.x = Math.sin(time) * 0.9;
+            mGroup.legR.knee.rotation.x = (Math.sin(time - Math.PI / 2) + 1) * 0.5;
+            mGroup.legR.ankle.rotation.x = Math.sin(time) * 0.2;
+
+            mGroup.head.rotation.y = Math.sin(time * 0.5) * 0.15;
+            mGroup.head.rotation.z = Math.cos(time) * 0.05;
+            mGroup.pelvis.position.y = 0.9 + Math.abs(Math.sin(time * 2)) * 0.12;
+        }
+    } else {
+        let idleTime = Date.now() * 0.002;
+        if(mGroup.spine && currentLevel !== "level5") {
+            mGroup.spine.forEach((seg, idx) => {
+                seg.rotation.x = Math.sin(idleTime + idx*0.2) * 0.02;
+            });
+        }
+        if(mGroup.chest) mGroup.chest.scale.set(1 + Math.sin(idleTime)*0.03, 1, 1 + Math.sin(idleTime)*0.03);
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    if (!gameActive) return;
+
+    if (fOn && flashLight && Math.random() < 0.008) {
+        flashLight.intensity = fPower * (0.85 + Math.random() * 0.15);
+    }
+
+    if (currentLevel === "maze") {
+        const s = 0.065;
+        if (keys['KeyW']) { const nx = posX + Math.sin(angle) * s, nz = posZ + Math.cos(angle) * s; if(map[Math.floor(nz+0.2)][Math.floor(nx+0.2)] === 0) { posX = nx; posZ = nz; } }
+        if (keys['KeyS']) { const nx = posX - Math.sin(angle) * s, nz = posZ - Math.cos(angle) * s; if(map[Math.floor(nz-0.2)][Math.floor(nx-0.2)] === 0) { posX = nx; posZ = nz; } }
+        if (keys['KeyA']) angle += 0.045; if (keys['KeyD']) angle -= 0.045;
+        camera.position.set(posX, 1.4, posZ); camera.rotation.y = angle + Math.PI;
+        
+        let moving = false;
+        if (monsterStun <= 0) {
+            const dirX = posX - monsterPos.x, dirZ = posZ - monsterPos.z;
+            const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+            
+            monsterPos.x += (dirX / len) * 0.016; 
+            monsterPos.z += (dirZ / len) * 0.016;
+            moving = true;
+        } else { monsterStun--; }
+        
+        mazeMonster.position.set(monsterPos.x, mazeMonster.position.y, monsterPos.z); 
+        mazeMonster.lookAt(posX, mazeMonster.position.y, posZ);
+        
+        updateMonsterKinematics(mazeMonster, 0.012, moving);
+        
+        const dist = Math.sqrt((posX - monsterPos.x)**2 + (posZ - monsterPos.z)**2);
+        const danger = Math.max(0, 1 - (dist / 10));
+        
+        document.getElementById('red-vignette').style.background = `radial-gradient(circle, transparent ${75 - danger*70}%, rgba(200,0,0,${danger*0.95}) 100%)`;
+        
+        if (Math.sqrt((posX - exitPoint.x)**2 + (posZ - exitPoint.z)**2) < 1.0) { goToPoolLevel(); }
+        if (dist < 0.8 && monsterStun <= 0) { gameActive = false; document.getElementById('death-screen').style.display = 'flex'; }
+        
+    } else if (currentLevel === "pool") {
+        const s = 0.065;
+        if (keys['KeyW']) { posX += Math.sin(angle) * s; posZ += Math.cos(angle) * s; }
+        if (keys['KeyS']) { posX -= Math.sin(angle) * s; posZ -= Math.cos(angle) * s; }
+        if (keys['KeyA']) angle += 0.045; if (keys['KeyD']) angle -= 0.045;
+        camera.position.set(posX, 1.4, posZ); camera.rotation.y = angle + Math.PI;
+        
+        poolMonsters.forEach(pm => {
+            if(pm.real) {
+                const dirX = posX - pm.x, dirZ = posZ - pm.z;
+                const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+                
+                if (pm.cooldown > 0) pm.cooldown--;
+
+                if (pm.state === "chasing") {
+                    pm.x += (dirX / len) * 0.035;
+                    pm.z += (dirZ / len) * 0.035;
+                    pm.mesh.position.set(pm.x, 0, pm.z);
+                    pm.mesh.lookAt(posX, 0, posZ);
+                    updateMonsterKinematics(pm.mesh, 0.024, true);
+
+                    if (len < 8.5 && pm.cooldown === 0) {
+                        pm.state = "crouching";
+                        pm.crouchTimer = 120; // KAPTANIN EMRİ: Tam 2 saniye eğilip bekler (60fps * 2)
+                    }
+                } else if (pm.state === "crouching") {
+                    pm.mesh.lookAt(posX, 0, posZ);
+                    pm.crouchTimer--;
+                    
+                    if (pm.mesh.pelvis) pm.mesh.pelvis.position.y = 0.4; 
+                    updateMonsterKinematics(pm.mesh, 0.002, false);
+
+                    if (pm.crouchTimer <= 0) {
+                        pm.state = "leaping";
+                        pm.leapTimer = 27; // %50 daha hızlı zıplama ivmesi için havada kalma süresi sıkıştırıldı
+                        pm.dashDir.x = dirX / len;
+                        pm.dashDir.z = dirZ / len;
+                        playAdvancedRoboticScream();
+                    }
+                } else if (pm.state === "leaping") {
+                    // KAPTANIN EMRİ: %50 daha hızlı fırlama ivmesi (0.15'ten 0.225'e çıkartıldı)
+                    pm.x += pm.dashDir.x * 0.225;
+                    pm.z += pm.dashDir.z * 0.225;
+                    pm.mesh.position.set(pm.x, 0, pm.z);
+                    
+                    if (pm.mesh.pelvis) pm.mesh.pelvis.position.y = 1.3;
+                    if (pm.mesh.armL) {
+                        pm.mesh.armL.shoulder.rotation.x = -1.9;
+                        pm.mesh.armR.shoulder.rotation.x = -1.9;
+                    }
+
+                    pm.leapTimer--;
+                    if (pm.leapTimer <= 0) {
+                        pm.state = "chasing";
+                        pm.cooldown = 120; 
+                        if (pm.mesh.pelvis) pm.mesh.pelvis.position.y = 0.9;
+                    }
+                }
+                
+                if (len < 12 && Math.random() < 0.025) { playAdvancedRoboticScream(); }
+                if (len < 0.8) { gameActive = false; document.getElementById('death-screen').style.display = 'flex'; }
+            } else {
+                updateMonsterKinematics(pm.mesh, 0.002, false);
+            }
+        });
+        
+        if(posZ < -68.5) { goToHotelLobby(); }
+        
+    } else if (currentLevel === "hotel") {
+        const s = 0.065;
+        if (keys['KeyW']) { posX += Math.sin(angle) * s; posZ += Math.cos(angle) * s; }
+        if (keys['KeyS']) { posX -= Math.sin(angle) * s; posZ -= Math.cos(angle) * s; }
+        if (keys['KeyA']) angle += 0.045; if (keys['KeyD']) angle -= 0.045;
+        
+        if(posX > 17.5) posX = 17.5; if(posX < -17.5) posX = -17.5;
+        if(posZ > -0.5) posZ = -0.5; if(posZ < -39.5) posZ = -39.5;
+
+        camera.position.set(posX, 1.4, posZ); camera.rotation.y = angle + Math.PI;
+
+        hotelStationaryMonsters.forEach(sm => {
+            updateMonsterKinematics(sm, 0.002, false);
+        });
+
+        spiderTimer++;
+        if(spiderTimer >= 600) { 
+            spiderTimer = 0;
+            spiderState = (spiderState === "ceiling") ? "floor" : "ceiling";
+            playAdvancedRoboticScream();
+        }
+
+        let targetY = (spiderState === "ceiling") ? 2.7 : 0.25;
+        spiderPos.y += (targetY - spiderPos.y) * 0.08; 
+
+        const sDX = posX - spiderPos.x;
+        const sDZ = posZ - spiderPos.z;
+        const sDist = Math.sqrt(sDX * sDX + sDZ * sDZ);
+
+        if(sDist > 0.1) {
+            spiderPos.x += (sDX / sDist) * 0.048;
+            spiderPos.z += (sDZ / sDist) * 0.048;
+        }
+
+        hotelSpider.position.set(spiderPos.x, spiderPos.y, spiderPos.z);
+        hotelSpider.lookAt(posX, spiderPos.y, posZ);
+
+        let sTime = Date.now() * 0.015;
+        if(hotelSpider.legs) {
+            hotelSpider.legs.forEach(leg => {
+                leg.root.rotation.x = Math.sin(sTime + leg.index * 0.5) * 0.35;
+                leg.root.rotation.y = Math.cos(sTime + leg.index * 0.3) * 0.2 * leg.side;
+                leg.knee.rotation.z = (Math.sin(sTime + leg.index * 0.5) * 0.15) * leg.side;
+            });
+        }
+
+        const danger = Math.max(0, 1 - (sDist / 12));
+        document.getElementById('red-vignette').style.background = `radial-gradient(circle, transparent ${75 - danger*70}%, rgba(180,0,0,${danger*0.95}) 100%)`;
+
+        if(sDist < 0.9 && Math.abs(camera.position.y - spiderPos.y) < 1.5) {
+            gameActive = false;
+            document.getElementById('death-screen').style.display = 'flex';
+        }
+
+        if(posZ < -38.8) { goToCorridorLevel(); }
+        
+    } else if (currentLevel === "corridor") {
+        camera.position.set(0, 1.7, -1); camera.rotation.set(0, Math.PI, 0);
+        let elapsed = (Date.now() - corridorStartTime) / 1000;
+        
+        if (elapsed < 5.0) {
+            corridorMonster.position.z = corridorMonsterZ;
+            if(Math.random() < 0.05) highAmbientLight.intensity = Math.random() * 0.4 + 0.4;
+            else highAmbientLight.intensity = THREE.MathUtils.lerp(highAmbientLight.intensity, 1.0, 0.1);
+            
+            updateMonsterKinematics(corridorMonster, 0.004, false);
+            renderer.domElement.style.transform = `translate(${Math.random()*0.8 - 0.4}px, ${Math.random()*0.8 - 0.4}px)`;
+        } else {
+            if(!monsterActivated) {
+                monsterActivated = true;
+                highAmbientLight.intensity = 1.0;
+                clearInterval(screamInterval);
+                playAdvancedRoboticScream();
+            }
+            
+            camera.fov += (112 - camera.fov) * 0.025; camera.updateProjectionMatrix();
+            
+            let sprintSpeed = 0.32 + (elapsed - 5.0) * 0.04;
+            corridorMonsterZ += sprintSpeed;
+            corridorMonster.position.z = corridorMonsterZ;
+            corridorMonster.lookAt(0, corridorMonster.position.y, -1);
+            
+            updateMonsterKinematics(corridorMonster, 0.028, true);
+            
+            let mDist = Math.abs(-1 - corridorMonsterZ);
+            if(mDist < 80) {
+                let dShake = (80 - mDist) * 0.45;
+                renderer.domElement.style.transform = `translate(${Math.random()*dShake - dShake/2}px, ${Math.random()*dShake - dShake/2}px)`;
+            }
+        }
+        
+        // KAPTANIN EMRİ: Canavar tam yakalayacakken imha olmak yerine ekran kararır ve sürpriz bir şekilde Seviye 5'e ışınlanır!
+        if (corridorMonsterZ >= -14) {
+            goToLevel5();
+            renderer.domElement.style.transform = `translate(0,0)`;
+        }
+
+    } else if (currentLevel === "level5") {
+        // SEVİYE 5 KONTROL VE HAREKET MOTORU
+        const s = 0.065;
+        if (keys['KeyW']) { const nx = posX + Math.sin(angle) * s, nz = posZ + Math.cos(angle) * s; if(map5[Math.floor(nz+0.2)][Math.floor(nx+0.2)] === 0) { posX = nx; posZ = nz; } }
+        if (keys['KeyS']) { const nx = posX - Math.sin(angle) * s, nz = posZ - Math.cos(angle) * s; if(map5[Math.floor(nz-0.2)][Math.floor(nx-0.2)] === 0) { posX = nx; posZ = nz; } }
+        if (keys['KeyA']) angle += 0.045; if (keys['KeyD']) angle -= 0.045;
+        
+        camera.position.set(posX, 1.4, posZ); camera.rotation.y = angle + Math.PI;
+
+        // Kaplan/Köpek Duruşlu Canavar AI Mekanizmaları
+        const cDX = posX - level5MonsterPos.x;
+        const cDZ = posZ - level5MonsterPos.z;
+        const cDist = Math.sqrt(cDX * cDX + cDZ * cDZ);
+
+        // KAPTANIN EMRİ: Canavar kaplan/köpek gibi zıplaya zıplata gider, üzerimize atlama mekaniği yoktur.
+        quadHopTime += 0.18; // Zıplama frekansı hızı
+        let hopArc = Math.abs(Math.sin(quadHopTime)); 
+        
+        // Sadece havaya sıçradığı anlarda ileri yönde ivmelenir (Gerçekçi zıplama hareketi)
+        if (hopArc > 0.15 && cDist > 0.1) {
+            level5MonsterPos.x += (cDX / cDist) * 0.042;
+            level5MonsterPos.z += (cDZ / cDist) * 0.042;
+        }
+
+        // Canavarın ana yüksekliğini zıplama eğrisine bağla ve titreme ekle (kıpırdasın)
+        let wiggle = Math.sin(Date.now() * 0.05) * 0.015;
+        level5MonsterMesh.position.set(level5MonsterPos.x, (hopArc * 0.38) + wiggle, level5MonsterPos.z);
+        
+        // Gövde genel olarak oyuncunun yönüne döner
+        level5MonsterMesh.lookAt(posX, level5MonsterMesh.position.y, posZ);
+
+        // KAPTANIN EMRİ: Kafası HER ZAMAN tam olarak bize/kameraya kilitlenir!
+        if (level5MonsterMesh.head) {
+            // Dünya matrisinden bağımsız yerel kafa takibi simülasyonu
+            level5MonsterMesh.head.lookAt(camera.position.x, camera.position.y, camera.position.z);
+            level5MonsterMesh.head.rotation.x -= Math.PI / 2; // Dört ayaklı duruş rotasyon ofsetini koru
+        }
+
+        // Sürekli küçük bacak oynamaları/kıpırdamaları yapması
+        if(level5MonsterMesh.armL) {
+            level5MonsterMesh.armL.shoulder.rotation.z = Math.sin(Date.now()*0.02) * 0.1;
+            level5MonsterMesh.armR.shoulder.rotation.z = Math.cos(Date.now()*0.02) * 0.1;
+        }
+
+        const danger = Math.max(0, 1 - (cDist / 10));
+        document.getElementById('red-vignette').style.background = `radial-gradient(circle, transparent ${75 - danger*70}%, rgba(200,0,0,${danger*0.95}) 100%)`;
+
+        // Ölüm Şartı
+        if (cDist < 0.85) {
+            gameActive = false;
+            document.getElementById('death-screen').style.display = 'flex';
+        }
+
+        // KAPTANIN EMRİ: Sağ odadaki Kaçış Kapısına (level5ExitPoint) ulaştığında oyunu KAZANIR!
+        const winDist = Math.sqrt((posX - level5ExitPoint.x)**2 + (posZ - level5ExitPoint.z)**2);
+        if (winDist < 1.0) {
+            gameActive = false;
+            document.getElementById('win-screen').style.display = 'flex';
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+
+window.startGame = () => { document.getElementById('overlay').style.display = 'none'; gameActive = true; init(); animate(); };
+window.upgrade = (type) => { 
+    if(type === 'range' && money >= 50) { money -= 50; fRange += 12; if(flashLight) flashLight.distance = fRange; }
+    if(type === 'power' && money >= 75) { money -= 75; fPower += 12; if(flashLight) flashLight.intensity = fPower; }
+    document.getElementById('money-display').innerText = money;
+};
+setInterval(() => { if(gameActive && (currentLevel === "maze" || currentLevel === "level5")) { money += 5; document.getElementById('money-display').innerText = money; } }, 5000);
+
+function fireStun() {
+    if(!gameActive || (currentLevel !== "maze" && currentLevel !== "level5")) return;
+    stunReady = false; document.getElementById('s-stat').innerText = "DOLUYOR...";
+    const p = new THREE.PointLight(0x00ffff, 80, 12); p.position.copy(camera.position); scene.add(p);
+    setTimeout(() => scene.remove(p), 150);
+    
+    if(currentLevel === "maze") {
+        if(Math.sqrt((camera.position.x - monsterPos.x)**2 + (camera.position.z - monsterPos.z)**2) < 7) monsterStun = 400;
+    }
+    setTimeout(() => { stunReady = true; document.getElementById('s-stat').innerText = "HAZIR"; }, 15000);
+}
+</script>
+</body>
+</html>
+"""
+
+with open("BACKROOMS_WHITE_HELL_PRO_v6.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+print("File upgraded to v6.0 with Level 5 successfully!")

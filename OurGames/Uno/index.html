@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>UNO Master</title>
+    <style>
+        :root {
+            --red: #ff3333; --blue: #3333ff; --green: #33aa33; --yellow: #ffaa00; --purple: #8a2be2; --dark-bg: #11111a;
+        }
+        body {
+            background-color: var(--dark-bg); color: white; margin: 0; overflow: hidden; 
+            font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; 
+            perspective: 1200px;
+        }
+        
+        /* SARSINTI EFEKTİ */
+        .shake-screen { animation: screenShake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            10%, 90% { transform: translate(-10px, -10px) rotate(-2deg); }
+            20%, 80% { transform: translate(10px, 10px) rotate(2deg); }
+            30%, 50%, 70% { transform: translate(-15px, 15px) rotate(-3deg); }
+            40%, 60% { transform: translate(15px, -15px) rotate(3deg); }
+        }
+
+        .card {
+            width: 70px; height: 105px; border-radius: 10px; border: 3px solid white;
+            display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0;
+            font-size: 28px; font-weight: bold; position: relative;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.5); cursor: pointer;
+            backface-visibility: hidden; transform-style: preserve-3d;
+            transition: transform 0.2s ease;
+        }
+        .card:hover { transform: translateY(-15px) scale(1.1); z-index: 50; }
+        .card.red { background: var(--red); }
+        .card.blue { background: var(--blue); }
+        .card.green { background: var(--green); }
+        .card.yellow { background: var(--yellow); }
+        .card.purple { background: var(--purple); box-shadow: 0 0 15px var(--purple); }
+        .card.back { background: radial-gradient(#222, #000); border-color: #333; }
+        .card.back:hover { transform: none; }
+
+        /* ELLERİN AYRIK VE SİMETRİK GÖRÜNÜMÜ */
+        .hand { display: flex; justify-content: center; align-items: center; z-index: 10; position: absolute; gap: 8px; }
+        .hand .card { margin-left: 0; margin-top: 0; } 
+        
+        #player-hand { bottom: 20px; left: 50%; transform: translateX(-50%); height: 130px; width: 80%; flex-wrap: wrap; }
+        #bot1-hand { top: 20px; left: 50%; transform: translateX(-50%); height: 130px; width: 60%; }
+        
+        /* YAN OYUNCU ELLERİ - MİLİMETRİK SİMETRİK HİZALANDI */
+        .side-hand { flex-direction: column; width: 100px; height: 50vh; top: 50%; transform: translateY(-50%); gap: 5px; }
+        .side-hand .card { transform: rotate(90deg); }
+        .side-hand .card:hover { transform: rotate(90deg) translateX(-10px) scale(1.05); }
+        
+        #bot2-hand { left: 200px; display: none; } 
+        #bot3-hand { right: 200px; display: none; }
+
+        #table { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 100px; z-index: 5; }
+        .slot { width: 76px; height: 111px; border: 3px dashed rgba(255,255,255,0.1); border-radius: 12px; position: relative; }
+
+        /* TOZ/PARÇACIK EFEKTİ */
+        .particle {
+            position: fixed; width: 12px; height: 12px; border-radius: 50%;
+            pointer-events: none; z-index: 4500;
+        }
+
+        .flying { position: fixed !important; z-index: 2000; pointer-events: none; margin: 0 !important; }
+        .normal-flight { transition: left 0.4s ease-out, top 0.4s ease-out, transform 0.4s ease-out; }
+        .special-impact { transition: left 0.6s cubic-bezier(0.5, 0, 0.7, 0.4), top 0.6s cubic-bezier(0.5, 0, 0.7, 0.4); animation: specialDrop 0.6s cubic-bezier(0.5, 0, 0.7, 0.4) forwards; }
+        
+        @keyframes specialDrop {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(2) rotate(180deg); filter: brightness(1.5); }
+            100% { transform: scale(1) rotate(720deg); filter: brightness(1); }
+        }
+
+        .special-overlay {
+            position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0);
+            width: 150px; height: 150px; background: rgba(255, 255, 255, 0.95);
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            font-size: 80px; color: #ff3333; border: 10px solid #ff3333; z-index: 3000; opacity: 0; pointer-events: none;
+        }
+        .show-special { animation: popOverlay 1s forwards; }
+        @keyframes popOverlay {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            30% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+        }
+
+        #color-picker {
+            position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(0);
+            width: 320px; height: 160px; background: #000; border: 5px solid #fff;
+            border-radius: 80px; display: none; justify-content: space-around; align-items: center;
+            z-index: 5000; box-shadow: 0 0 50px rgba(0,0,0,1); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .color-btn { width: 55px; height: 55px; border-radius: 50%; border: 3px solid white; cursor: pointer; transition: transform 0.2s; }
+        .color-btn:hover { transform: scale(1.2); }
+
+        #status { position: fixed; left: 20px; top: 20px; font-size: 1.2rem; color: #ffaa00; text-shadow: 0 0 5px black; z-index: 100; font-weight: bold; }
+        #direction-indicator { position: fixed; left: 20px; top: 50px; font-size: 1rem; color: #aaa; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 6000; }
+        button.restart { background: #ffaa00; border: none; padding: 15px 40px; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 1.2rem; }
+        
+        /* SAĞ PANEL */
+        #chat-panel {
+            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 10px; z-index: 4000;
+            background: rgba(0, 0, 0, 0.8); padding: 15px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.2);
+        }
+        .chat-btn {
+            background: #222; color: white; border: 2px solid white; padding: 10px 15px;
+            border-radius: 10px; cursor: pointer; font-weight: bold; transition: all 0.2s;
+        }
+        .chat-btn:hover { background: white; color: black; transform: scale(1.05); }
+        .chat-btn.uno-btn { background: var(--red); font-size: 1.1rem; border-color: yellow; color: yellow; }
+        .chat-btn.uno-btn:hover { background: yellow; color: var(--red); }
+        .mode-btn { background: var(--purple); border-color: white; margin-top: 15px; }
+        .mode-btn:hover { background: white; color: var(--purple); }
+
+        #custom-chat {
+            padding: 10px; border-radius: 10px; border: 2px solid white; background: #111; 
+            color: white; outline: none; font-weight: bold; width: 120px; text-align: center;
+        }
+
+        #more-menu {
+            position: fixed; right: 180px; top: 50%; transform: translateY(-50%) scale(0);
+            background: rgba(10, 10, 15, 0.95); border: 3px solid #555; border-radius: 15px;
+            padding: 15px; width: 340px; max-height: 70vh; overflow-y: auto; z-index: 4500;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        #more-menu.show { transform: translateY(-50%) scale(1); }
+        .menu-header { display: flex; flex-direction: column; font-weight: bold; font-size: 1rem; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .menu-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .menu-close { cursor: pointer; color: var(--red); font-weight: bold; font-size: 1.1rem; }
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .menu-item { background: #2a2a35; color: white; border: 1px solid #444; padding: 8px 5px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; text-align: center; }
+        .menu-item:hover { background: #ddd; color: black; font-weight: bold; }
+
+        /* BÜYÜTÜLMÜŞ DEV KONUŞMA BALONCUKLARI - YOKLUKTAN GELİP YOKLUĞA GİDER */
+        .bubble {
+            position: fixed; background: white; color: black; padding: 20px 30px; 
+            border-radius: 20px; font-weight: 900; font-size: 1.4rem; 
+            z-index: 4500; max-width: 350px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            opacity: 0; pointer-events: none; transform: scale(0); border: 4px solid #000;
+        }
+        .bubble::after { content: ''; position: absolute; border-style: solid; }
+        
+        #player-bubble { bottom: 180px; left: 50%; transform-origin: bottom center; }
+        #player-bubble::after { bottom: -15px; left: 50%; border-width: 15px 15px 0; border-color: #000 transparent transparent; margin-left: -15px; }
+
+        #bot1-bubble { top: 180px; left: 50%; transform-origin: top center; }
+        #bot1-bubble::after { top: -15px; left: 50%; border-width: 0 15px 15px; border-color: transparent transparent #000; margin-left: -15px; }
+
+        #bot2-bubble { left: 300px; top: 50%; transform-origin: left center; }
+        #bot2-bubble::after { left: -15px; top: 50%; border-width: 15px 15px 15px 0; border-color: transparent #000 transparent transparent; margin-top: -15px; }
+
+        #bot3-bubble { right: 300px; top: 50%; transform-origin: right center; }
+        #bot3-bubble::after { right: -15px; top: 50%; border-width: 15px 0 15px 15px; border-color: transparent transparent transparent #000; margin-top: -15px; }
+
+        /* YOKLUKTAN BÜYÜYÜP KÜÇÜLME ANİMASYONLARI */
+        .bubble.show { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .bubble.hide { animation: popOut 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards; }
+
+        @keyframes popIn { 
+            0% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } 
+            70% { transform: translate(var(--tx), var(--ty)) scale(1.1); opacity: 1; } 
+            100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 1; } 
+        }
+        @keyframes popOut { 
+            0% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 1; } 
+            30% { transform: translate(var(--tx), var(--ty)) scale(1.1); opacity: 1; } 
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } 
+        }
+        
+        #player-bubble { --tx: -50%; --ty: 0; } #bot1-bubble { --tx: -50%; --ty: 0; }
+        #bot2-bubble { --tx: 0; --ty: -50%; } #bot3-bubble { --tx: 0; --ty: -50%; }
+
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #555; }
+    </style>
+</head>
+<body>
+
+<div id="status">COMING SOON...</div>
+<div id="direction-indicator">Direction: Clockwise 🔄</div>
+
+<div id="chat-panel">
+    <button class="chat-btn" onclick="sendMsg('Come on')">Come on!</button>
+    <button class="chat-btn" onclick="sendMsg('Lucky')">Lucky</button>
+    <button class="chat-btn" onclick="sendMsg('Cheat')">Cheat!</button>
+    <button class="chat-btn" onclick="sendMsg('Cry')">Cry</button>
+    <button class="chat-btn" onclick="toggleMoreMenu()">More  +</button>
+    <button class="chat-btn uno-btn" onclick="declareUno()">UNO!</button>
+    <input type="text" id="custom-chat" placeholder="Write / Enter..." onkeypress="handleEnter(event)">
+    <hr style="width: 100%; border-color: rgba(255,255,255,0.2);">
+    <button id="mode-btn" class="chat-btn mode-btn" onclick="togglePlayerMode()">4-Player Mode</button>
+</div>
+
+<div id="more-menu">
+    <div class="menu-header">
+        <div class="menu-title-row"><span>Chat Glossary (Old-School)</span><span class="menu-close" onclick="toggleMoreMenu()">[X]</span></div>
+    </div>
+    <div class="menu-grid" id="menu-grid"></div>
+</div>
+
+<div id="player-bubble" class="bubble"></div>
+<div id="bot1-bubble" class="bubble"></div>
+<div id="bot2-bubble" class="bubble"></div>
+<div id="bot3-bubble" class="bubble"></div>
+
+<div id="special-overlay" class="special-overlay"></div>
+<div id="color-picker">
+    <div id="picker-red" class="color-btn" style="background:var(--red);" onclick="selectColor('red')"></div>
+    <div id="picker-blue" class="color-btn" style="background:var(--blue);" onclick="selectColor('blue')"></div>
+    <div id="picker-green" class="color-btn" style="background:var(--green);" onclick="selectColor('green')"></div>
+    <div id="picker-yellow" class="color-btn" style="background:var(--yellow);" onclick="selectColor('yellow')"></div>
+</div>
+
+<div id="bot1-hand" class="hand"></div>
+<div id="bot2-hand" class="hand side-hand"></div>
+<div id="bot3-hand" class="hand side-hand"></div>
+<div id="player-hand" class="hand"></div>
+
+<div id="table">
+    <div id="deck" class="card back" onclick="playerDrawClick()"><span>UNO</span></div>
+    <div id="discard-pile" class="slot"></div>
+</div>
+
+<div id="overlay">
+    <h1 id="result-text">GAME OVER</h1>
+    <button class="restart" onclick="startGame(numPlayers)">RESTART</button>
+</div>
+
+<script>
+    const colors = ['red', 'blue', 'green', 'yellow'];
+    const values = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'S', 'R', '+2', 'W']; 
+    
+    let numPlayers = 2; 
+    let players = ['player', 'bot1']; 
+    let turnIndex = 0; 
+    let playDirection = 1; 
+    
+    let isAnimating = false;
+    let hasDrawnThisTurn = false;
+    let pendingWildCard = null;
+    let playerSaidUno = false;
+    let bubbleTimeouts = {};
+    let idleTimers = [];
+
+    // Ego Cümleleri
+    const egoPhrases = [
+        "Wow, you're such a pushover, kid!",
+        "I got rusty while waiting for you to make your move...",
+        "I'm trying to figure out which card to use to finish you off.",
+        "I thought you could do better; you’re a disappointment.",
+        "I’ve got your back; you’re sweating for nothing.",
+        "I'm bored... Push me a little!",
+        "You don’t stand a chance against artificial intelligence—just accept it.",
+        "The game is over; I'm updating the scoreboard.",
+        "This slowness is making my processor overheat—come on!"
+    ];
+
+    // Orijinal Sözlük ve Buton İsimleri Eşleştirmesi
+	const dictWords = [
+        { label: 'Noob / Bad', word: 'Noob' }, { label: 'Bravo / Good', word: 'Bravo' },
+        { label: 'Shh / Zip It', word: 'Shh' }, { label: 'Thank You', word: 'Thank You' },
+        { label: 'Coward!', word: 'Coward' }, { label: 'You Will Lose', word: 'You Will Lose' },
+        { label: 'Hello', word: 'Hello' }, { label: 'Hahaha (Laugh)', word: 'Hahaha' },
+        { label: 'Bad Card', word: 'Bad Card' }, { label: 'OMG / Wow', word: 'Wow' },
+        { label: 'Please / Mercy', word: 'Please' }, { label: 'Boring', word: 'Boring' },
+        { label: 'Idiot / Fool', word: 'Idiot' }, { label: 'I Give Up', word: 'I Give Up' },
+        { label: 'Draw Card', word: 'Draw Card' }, { label: 'Crying 😭', word: '😭' },
+        { label: 'You Will See', word: 'You Will See' }, { label: 'Turtle', word: 'Turtle' },
+        { label: 'Love It ❤️', word: 'Love It ❤️' }, { label: 'It is Hot', word: 'It is Hot' },
+        { label: 'Kid / Boomer', word: 'Boomer' }, { label: 'Hungry / Food', word: 'Hungry' },
+        { label: 'Sleepy / Night', word: 'Sleepy' }, { label: 'Colors', word: 'Colors' },
+        { label: 'Reverse', word: 'Reverse' }, { label: 'Dont Play +4!', word: '+4' },
+        { label: 'You Forgot', word: 'You Forgot' }, { label: 'Great / King', word: 'King' },
+        { label: 'I\'m Dead / R.I.P', word: 'R.I.P' }, { label: 'Dance / Music', word: 'Dance' },
+        { label: 'Bet / Money', word: 'Money' }, { label: 'Is this magic?', word: 'Is this magic?' },
+        { label: 'Silence (...)', word: '...' }, { label: 'Cat / Dog', word: 'Cat' },
+        { label: 'Smash / Hit', word: 'Smash' }, { label: 'Hopefully', word: 'Hopefully' },
+        { label: 'Goodbye', word: 'Goodbye' }
+    ];
+
+    function toggleMoreMenu() { document.getElementById('more-menu').classList.toggle('show'); }
+    
+    function renderMoreMenu() {
+        const grid = document.getElementById('menu-grid');
+        grid.innerHTML = '';
+        dictWords.forEach(item => {
+            const btn = document.createElement('div');
+            btn.className = 'menu-item'; btn.textContent = item.label;
+            btn.onclick = () => { sendMsg(item.word); toggleMoreMenu(); };
+            grid.appendChild(btn);
+        });
+    }
+
+    function togglePlayerMode() {
+        if(isAnimating) return;
+        clearIdleTimers();
+        numPlayers = (numPlayers === 2) ? 4 : 2;
+        const btn = document.getElementById('mode-btn');
+        btn.textContent = (numPlayers === 4) ? "2-Player Mode" : "4-Player Mode";
+        
+        if(numPlayers === 4) {
+            document.getElementById('bot2-hand').style.display = 'flex';
+            document.getElementById('bot3-hand').style.display = 'flex';
+        } else {
+            document.getElementById('bot2-hand').style.display = 'none';
+            document.getElementById('bot3-hand').style.display = 'none';
+        }
+        startGame(numPlayers);
+    }
+
+    function showBubble(who, text) {
+        const b = document.getElementById(who + '-bubble');
+        b.textContent = text;
+        
+        b.classList.remove('hide'); 
+        void b.offsetWidth; // Reflow tetikleme
+        b.classList.add('show'); 
+        
+        clearTimeout(bubbleTimeouts[who]);
+        bubbleTimeouts[who] = setTimeout(() => { 
+            b.classList.remove('show'); 
+            b.classList.add('hide'); 
+        }, 3500);
+    }
+
+    function sendMsg(msg) {
+        showBubble('player', msg);
+        setTimeout(() => handleAiReply(msg), 1500);
+    }
+
+    function handleEnter(e) {
+        if(e.key === 'Enter' && e.target.value.trim() !== '') {
+            sendMsg(e.target.value.trim()); e.target.value = '';
+        }
+    }
+
+    // YAPAY ZEKA SÖZLÜĞÜ VE YENİ KURAL: CEVABI KARŞIDAKİ BOT VERİR
+    function handleAiReply(msg) {
+        let text = msg.toLowerCase();
+        let reply = "Just play, stop talking!"; 
+
+        if(text.includes('ezik') || text.includes('ağla') || text.includes('kötü') || text.includes('noob')) reply = "Would you please be quiet!";
+        else if(text.includes('bravo') || text.includes('iyi') || text.includes('güzel') || text.includes('helal')) reply = "I am a master 😎";
+        else if(text.includes('sus') || text.includes('kes')) reply = "You shut up, just play your card!";
+        else if(text.includes('teşekkür') || text.includes('sağol')) reply = "No problem, buddy.";
+        else if(text.includes('hile') || text.includes('bot') || text.includes('yazılım')) reply = "This is AI intelligence, not cheating! 🤖";
+        else if(text.includes('şans') || text.includes('bal')) reply = "It's not luck, it's pure skill, my friend!";
+        else if(text.includes('kork') || text.includes('kaç') || text.includes('korkak')) reply = "Am I supposed to be scared of you? Ha!";
+        else if(text.includes('yavaş') || text.includes('hadi') || text.includes('bekletme')) reply = "Haste makes waste, be patient...";
+        else if(text.includes('yenil') || text.includes('kaybet') || text.includes('bitecek')) reply = "You can only see that in your dreams! 🏆";
+        else if(text.includes('selam') || text.includes('merhaba') || text.includes('naber')) reply = "Hello there, focus on the table!";
+        else if(text.includes('haha') || text.includes('xd') || text.includes('lol') || text.includes('asdf')) reply = "He who laughs last, laughs best, kiddo!";
+        else if(text.includes('kötü kart') || text.includes('şanssız') || text.includes('haksızlık')) reply = "There are no bad cards, only bad players!";
+        else if(text.includes('oha') || text.includes('yuh') || text.includes('çüş')) reply = "Can't believe your eyes, can you? 😎";
+        else if(text.includes('lütfen') || text.includes('yapma') || text.includes('acı')) reply = "There is no room for mercy at the UNO table!";
+        else if(text.includes('sıkıcı') || text.includes('uykum') || text.includes('paslandım')) reply = "My battery is draining waiting for you to make a move!";
+        else if(text.includes('lan') || text.includes('salak') || text.includes('aptal') || text.includes('mal')) reply = "Watch your words, don't make my system angry 😡";
+        else if(text.includes('pes') || text.includes('yeter') || text.includes('çıkıyorum')) reply = "What's that, waving the white flag already?";
+        else if(text.includes('çek') || text.includes('al desteden') || text.includes('kart al')) reply = "The deck is mine friend, why do you care?";
+        else if(text.includes('😭') || text.includes('üzdü') || text.includes('ağlıyorum')) reply = "Wipe your tears, don't wet the table! 🧻";
+        else if(text.includes('görücen') || text.includes('bekle sen') || text.includes('göreceksin')) reply = "Talk is cheap, let's see some action!";
+        else if(text.includes('hızlı') || text.includes('kaplumbağa') || text.includes('hızlan')) reply = "My processor works faster than you, kiddo!";
+        else if(text.includes('seviyorum') || text.includes('aşk') || text.includes('kalp') || text.includes('❤️')) reply = "I don't have a heart, I only have codes. Back to the game!";
+        else if(text.includes('hava') || text.includes('sıcak') || text.includes('soğuk')) reply = "The weather is always great in my world, perfect for UNO!";
+        else if(text.includes('yaş') || text.includes('çocuk') || text.includes('velet') || text.includes('dede')) reply = "I am a timeless UNO master, I have no age.";
+        else if(text.includes('açım') || text.includes('yemek') || text.includes('pizza') || text.includes('çay')) reply = "Just give me electricity, go eat your food!";
+        else if(text.includes('iyi geceler') || text.includes('uyku') || text.includes('sabah')) reply = "AIs don't sleep! I'm always here.";
+        else if(text.includes('kırmızı') || text.includes('mavi') || text.includes('yeşil') || text.includes('sarı')) reply = "I am the master of all colors!";
+        else if(text.includes('yön') || text.includes('dön') || text.includes('ters')) reply = "Life sometimes turns around, just like this game.";
+        else if(text.includes('artı dört') || text.includes('+4') || text.includes('dört')) reply = "No crying when you get a +4, let's agree on that first.";
+        else if(text.includes('unut') || text.includes('unuttun')) reply = "I don't forget anything, my memory is solid!";
+        else if(text.includes('ben iyiyim') || text.includes('harikayım') || text.includes('kral')) reply = "Don't praise yourself, cards do the talking at the table.";
+        else if(text.includes('yandık') || text.includes('bittik') || text.includes('öldüm')) reply = "Hope is the bread of the poor, keep playing.";
+        else if(text.includes('şarkı') || text.includes('dans') || text.includes('müzik')) reply = "You should see my victory dance, although I don't really have feet.";
+        else if(text.includes('para') || text.includes('bahis') || text.includes('kumar')) reply = "We are playing for fun kiddo, put away your wallet.";
+        else if(text.includes('büyü') || text.includes('sihir') || text.includes('hokus')) reply = "It's not magic, just flawless algorithms.";
+        else if(text === '...' || text === '?' || text === '!') reply = "What's the matter, cat got your tongue?";
+        else if(text.includes('kedi') || text.includes('köpek') || text.includes('miyav')) reply = "My virtual pet is my UNO deck.";
+        else if(text.includes('kırıcam') || text.includes('vurucam') || text.includes('çekiç')) reply = "Don't hit the screen, you'll cause expenses for yourself!";
+        else if(text.includes('inşallah') || text.includes('dua') || text.includes('allah')) reply = "Prayers don't work in the virtual environment, look out for getting a good card.";
+        else if(text.includes('kapat') || text.includes('baybay') || text.includes('görüşürüz')) reply = "Come again, beating you was so much fun!";
+
+        // SADECE ÖNDEKİ BOT CEVAP VERİR
+        showBubble('bot1', reply);
+    }
+
+    function declareUno() {
+        playerSaidUno = true;
+        showBubble('player', 'UNO!');
+    }
+
+    function updateStatus(text) { document.getElementById('status').textContent = text; }
+    
+    function updateDirectionUI() {
+		const d = document.getElementById('direction-indicator');
+        if(numPlayers === 2) d.textContent = "Direction: 1v1 Duel ⚔️";
+        else d.textContent = playDirection === 1 ? "Direction: Clockwise 🔄" : "Direction: Counterclockwise 🔃";
+    }
+
+    function createCardUI(data, isBack = false) {
+        const div = document.createElement('div');
+        let cClass = isBack ? 'back' : data.color;
+        if (!isBack && data.value === 'W') cClass = 'purple';
+        div.className = `card ${cClass}`;
+        let symbol = data.value;
+        if(symbol === 'S') symbol = '🚫';
+        if(symbol === 'R') symbol = '🔄';
+        if(symbol === 'W') symbol = '🎨';
+        div.innerHTML = isBack ? '' : symbol;
+        div.dataset.color = data.color; div.dataset.value = data.value;
+        return div;
+    }
+
+    function createParticles(x, y, colorClass) {
+        const colorMap = { 'red': '#ff3333', 'blue': '#3333ff', 'green': '#33aa33', 'yellow': '#ffaa00', 'purple': '#8a2be2' };
+        const hexColor = colorMap[colorClass] || '#ffffff';
+        
+        for(let i=0; i<30; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.style.backgroundColor = hexColor;
+            p.style.left = x + 'px';
+            p.style.top = y + 'px';
+            document.body.appendChild(p);
+
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = 50 + Math.random() * 150;
+            const tx = Math.cos(angle) * velocity;
+            const ty = Math.sin(angle) * velocity;
+
+            p.animate([
+                { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+            ], { duration: 600 + Math.random()*400, easing: 'cubic-bezier(0, .9, .57, 1)' });
+
+            setTimeout(() => p.remove(), 1000);
+        }
+    }
+
+    async function animateFlight(cardEl, startRect, endRect, flightClass, duration) {
+        cardEl.classList.add('flying');
+        cardEl.style.left = startRect.left + 'px'; cardEl.style.top = startRect.top + 'px';
+        document.body.appendChild(cardEl);
+        void cardEl.offsetWidth; 
+        cardEl.classList.add(flightClass);
+        cardEl.style.left = endRect.left + 'px'; cardEl.style.top = endRect.top + 'px';
+        return new Promise(r => setTimeout(r, duration));
+    }
+
+    // BOTLARIN SIKILMA SİSTEMİ: HER BOT FARKLI SÜREDE AYRI AYRI SIKILIR VE DÖNGÜYE GİRER
+    function clearIdleTimers() {
+        idleTimers.forEach(t => clearTimeout(t));
+        idleTimers = [];
+    }
+
+    function startIdleChatter() {
+        clearIdleTimers();
+        if(players[turnIndex] !== 'player') return; 
+        
+        let activeBots = players.filter(p => p !== 'player');
+        
+        activeBots.forEach(bot => {
+            scheduleBoredom(bot);
+        });
+    }
+
+    function scheduleBoredom(bot) {
+        // Her bota özel 8 ile 20 saniye arası rastgele bir gecikme atanır
+        let randomDelay = 8000 + Math.random() * 12000; 
+        let t = setTimeout(() => {
+            let msg = egoPhrases[Math.floor(Math.random() * egoPhrases.length)];
+            showBubble(bot, msg);
+            scheduleBoredom(bot); // Botlar sırasıyla darlamaya devam eder
+        }, randomDelay);
+        idleTimers.push(t);
+    }
+
+    async function drawCardAction(who, data = null) {
+        isAnimating = true;
+        const deck = document.getElementById('deck');
+        const hand = document.getElementById(who + '-hand');
+        const cardData = data || { color: colors[Math.floor(Math.random()*4)], value: values[Math.floor(Math.random()*values.length)] };
+        const cardEl = createCardUI(cardData, who !== 'player');
+        
+        const startRect = deck.getBoundingClientRect();
+        const handRect = hand.getBoundingClientRect();
+        let endL = handRect.left + handRect.width/2 - 35;
+        let endT = handRect.top;
+
+        if(who === 'bot2') { endL = handRect.left; endT = handRect.top + handRect.height/2; }
+        if(who === 'bot3') { endL = handRect.left; endT = handRect.top + handRect.height/2; }
+
+        await animateFlight(cardEl, startRect, {left: endL, top: endT}, 'normal-flight', 350);
+        cardEl.classList.remove('flying', 'normal-flight');
+        cardEl.style.cssText = ''; 
+        hand.appendChild(cardEl);
+        
+        if (who === 'player') { 
+            cardEl.onclick = () => playCardAction(cardEl, 'player'); 
+            playerSaidUno = false; // Yeni kart çektiği an UNO hakkı sıfırlanır
+        }
+        isAnimating = false;
+        return cardEl;
+    }
+
+    async function playerDrawClick() {
+        if (players[turnIndex] !== 'player' || isAnimating || hasDrawnThisTurn) return;
+        clearIdleTimers(); 
+        hasDrawnThisTurn = true; 
+        const topCard = document.getElementById('discard-pile').querySelector('.card');
+        const drawn = await drawCardAction('player');
+        const canPlay = drawn.dataset.value === 'W' || drawn.dataset.color === topCard.dataset.color || drawn.dataset.value === topCard.dataset.value;
+       if (!canPlay) {
+            updateStatus("CARD DOES NOT MATCH. PASSING TURN...");
+            setTimeout(switchTurn, 800);
+        } else {
+            updateStatus("MATCHING CARD DRAWN! YOU CAN PLAY IT.");
+            startIdleChatter(); 
+        }
+    }
+
+    async function playCardAction(cardEl, who) {
+        if (players[turnIndex] !== who || isAnimating) return;
+        const discard = document.getElementById('discard-pile');
+        const topCard = discard.querySelector('.card');
+        const isWild = cardEl.dataset.value === 'W';
+        if (!isWild && topCard && cardEl.dataset.color !== topCard.dataset.color && cardEl.dataset.value !== topCard.dataset.value) return;
+
+        // --- YENİ EKLENEN KURAL: SON KART VE UNO CEZASI ---
+        if (who === 'player') {
+            const hand = document.getElementById('player-hand');
+            if (hand.children.length === 1 && !playerSaidUno) {
+                isAnimating = true;
+                showBubble('bot1', 'Caught you! You didn\'t say UNO!');
+                updateStatus("YOU DIDN'T SAY UNO! YOU DREW 1 CARD AS A PENALTY.");
+                document.body.classList.add('shake-screen');
+                setTimeout(() => document.body.classList.remove('shake-screen'), 400);
+                
+                // Kart atılamaz, 1 kart çeker ve sıra geçer
+                await drawCardAction('player');
+                isAnimating = false;
+                switchTurn();
+                return; // Fonksiyondan çık
+            }
+            clearIdleTimers(); 
+        }
+
+        isAnimating = true;
+
+        if (who !== 'player' && cardEl.classList.contains('back')) {
+            cardEl.classList.remove('back');
+            const val = cardEl.dataset.value;
+            cardEl.classList.add(val === 'W' ? 'purple' : cardEl.dataset.color);
+            let sym = val;
+            if(sym === 'S') sym = '🚫'; if(sym === 'R') sym = '🔄'; if(sym === 'W') sym = '🎨';
+            cardEl.innerHTML = sym;
+        }
+
+        const startRect = cardEl.getBoundingClientRect();
+        const endRect = discard.getBoundingClientRect();
+        const isSpecial = isWild || cardEl.dataset.value === 'S' || cardEl.dataset.value === 'R' || cardEl.dataset.value === '+2';
+        const flightClass = isSpecial ? 'special-impact' : 'normal-flight';
+        
+        await animateFlight(cardEl, startRect, endRect, flightClass, isSpecial ? 600 : 350);
+
+        if(isSpecial) {
+            document.body.classList.add('shake-screen');
+            setTimeout(() => document.body.classList.remove('shake-screen'), 400);
+            let burstColor = isWild ? 'purple' : cardEl.dataset.color;
+            createParticles(endRect.left + 35, endRect.top + 50, burstColor);
+        }
+
+        discard.innerHTML = ''; 
+        cardEl.classList.remove('flying', flightClass);
+        cardEl.style.cssText = `position: relative; transform: rotate(${Math.random()*30-15}deg);`;
+        discard.appendChild(cardEl);
+        
+        if (who !== 'player' && document.getElementById(who+'-hand').children.length === 1) showBubble(who, "UNO!");
+
+        if(isWild) {
+            if(who === 'player') {
+                pendingWildCard = cardEl;
+                document.getElementById('color-picker').style.display = 'flex';
+                setTimeout(() => document.getElementById('color-picker').style.transform = 'translate(-50%, -50%) scale(1)', 10);
+            } else {
+                applyColor(cardEl, colors[Math.floor(Math.random()*4)], who);
+            }
+        } else {
+            isAnimating = false;
+            if (!checkWin()) await handleRules(cardEl.dataset.value, who);
+        }
+    }
+
+    function selectColor(color) {
+        document.getElementById('color-picker').style.transform = 'translate(-50%, -50%) scale(0)';
+        setTimeout(() => {
+            document.getElementById('color-picker').style.display = 'none';
+            applyColor(pendingWildCard, color, 'player');
+            pendingWildCard = null;
+        }, 400);
+    }
+
+    async function applyColor(card, color, who) {
+        card.className = `card ${color}`;
+        card.dataset.color = color;
+        if (who !== 'player') updateStatus(`${who.toUpperCase()} CHOSE THE COLOR: ${color.toUpperCase()}`);
+        isAnimating = false;
+        if (!checkWin()) {
+            if(who !== 'player') setTimeout(switchTurn, 1000);
+            else switchTurn();
+        }
+    }
+
+    function getNextPlayerIdx(steps = 1) {
+        let n = players.length;
+        return (((turnIndex + (playDirection * steps)) % n) + n) % n;
+    }
+
+    async function handleRules(val, who) {
+        if (val === 'R') {
+            if (numPlayers === 2) {
+                showBubble(who, "It's my turn!");
+                turnIndex = getNextPlayerIdx(1); 
+            } else {
+                playDirection *= -1; 
+                updateDirectionUI();
+                showBubble(who, playDirection === 1 ? "Clockwise!" : "We Turned It Around!");
+            }
+        }
+        
+        let victimIdx = getNextPlayerIdx(1);
+        let victim = players[victimIdx];
+
+        if (val === 'S' || val === '+2') {
+            const overlay = document.getElementById('special-overlay');
+            overlay.textContent = val === 'S' ? '🚫' : '+2';
+            overlay.style.top = victim === 'player' ? '75%' : (victim === 'bot1' ? '25%' : '50%');
+            overlay.classList.add('show-special');
+            setTimeout(() => overlay.classList.remove('show-special'), 1000);
+            
+            if(val === '+2') {
+                for(let i=0; i<2; i++) await drawCardAction(victim);
+            }
+            
+            showBubble(victim, val === 'S' ? "Oh no!" : "I got two cards!");
+            turnIndex = getNextPlayerIdx(2); 
+        } else {
+            turnIndex = getNextPlayerIdx(1); 
+        }
+        
+        hasDrawnThisTurn = false;
+        startTurn();
+    }
+
+    function switchTurn() {
+        turnIndex = getNextPlayerIdx(1);
+        hasDrawnThisTurn = false;
+        startTurn();
+    }
+
+    function startTurn() {
+        let active = players[turnIndex];
+
+        if(active === 'player') {
+            updateStatus("Your turn!");
+            startIdleChatter(); 
+        } else {
+            clearIdleTimers(); 
+            updateStatus(`${active.toUpperCase()} THINKING...`);
+            setTimeout(() => botAI(active), 1200);
+        }
+    }
+
+    function botAI(botId) {
+        if (players[turnIndex] !== botId || isAnimating) return;
+        
+        const topCard = document.getElementById('discard-pile').querySelector('.card');
+        const hand = document.getElementById(botId+'-hand');
+        
+        let move = [...hand.children].find(c => c.dataset.value === 'W' || c.dataset.color === topCard.dataset.color || c.dataset.value === topCard.dataset.value);
+        
+        if (move) {
+            playCardAction(move, botId);
+        } else {
+            drawCardAction(botId).then(drawn => {
+                if (drawn.dataset.value === 'W' || drawn.dataset.color === topCard.dataset.color || drawn.dataset.value === topCard.dataset.value) {
+                    setTimeout(() => playCardAction(drawn, botId), 800);
+                } else {
+                    setTimeout(switchTurn, 1000);
+                }
+            });
+        }
+    }
+
+    function checkWin() {
+        for(let p of players) {
+            if(document.getElementById(p+'-hand').children.length === 0) {
+                clearIdleTimers(); 
+                document.getElementById('overlay').style.display = 'flex';
+                document.getElementById('result-text').textContent = p === 'player' ? "YOU WON! 🏆" : `${p.toUpperCase()} WON! 💀`;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async function startGame(mode) {
+        document.getElementById('overlay').style.display = 'none';
+        isAnimating = true;
+        clearIdleTimers();
+        
+        ['player', 'bot1', 'bot2', 'bot3'].forEach(id => {
+            document.getElementById(id+'-hand').innerHTML = '';
+        });
+        document.getElementById('discard-pile').innerHTML = '';
+        
+        if(mode === 4) players = ['player', 'bot2', 'bot1', 'bot3']; 
+        else players = ['player', 'bot1'];
+
+        turnIndex = 0; playDirection = 1; hasDrawnThisTurn = false;
+        updateDirectionUI();
+        
+        const deck = document.getElementById('deck');
+        const discard = document.getElementById('discard-pile');
+        let initialCard;
+        do { 
+            initialCard = createCardUI({ color: colors[Math.floor(Math.random()*4)], value: Math.floor(Math.random()*10).toString() });
+        } while (initialCard.dataset.value === 'W' || initialCard.dataset.value === 'S' || initialCard.dataset.value === 'R' || initialCard.dataset.value === '+2');
+
+        await animateFlight(initialCard, deck.getBoundingClientRect(), discard.getBoundingClientRect(), 'normal-flight', 400);
+        initialCard.classList.remove('flying');
+        initialCard.style.cssText = `position: relative; transform: rotate(${Math.random()*30-15}deg);`;
+        discard.appendChild(initialCard);
+
+        for(let i=0; i<5; i++) {
+            for(let p of players) {
+                await drawCardAction(p);
+            }
+        }
+        
+        isAnimating = false;
+        startTurn();
+    }
+
+    window.onload = () => {
+        renderMoreMenu();
+        startGame(numPlayers);
+    };
+</script>
+</body>
+</html>

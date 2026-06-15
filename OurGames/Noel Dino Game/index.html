@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noel Dino Game</title>
+    <style>
+        /* CSS: Görsel düzenlemeler */
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #ffcccc; /* Arka plan pembe */
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+        }
+
+        canvas {
+            background-color: #ffdeeb; 
+            border-bottom: 10px solid #ff85a1;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .score-board {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #d81b60;
+            text-shadow: 1px 1px 2px white;
+        }
+
+        /* Reset Butonu Tasarımı */
+        #resetBtn {
+            display: none; /* Sadece oyun bitince görünecek */
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            background-color: #d81b60;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+        }
+
+        #resetBtn:hover {
+            background-color: #ad1457;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="score-board" id="score">Score: 0</div>
+        <canvas id="gameCanvas"></canvas>
+        <button id="resetBtn" onclick="resetGame()">Restart</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const resetBtn = document.getElementById("resetBtn");
+
+        canvas.width = 1000;
+        canvas.height = 400;
+
+        // Görsel Yolları
+        const dinoImg = new Image();
+        dinoImg.src = "images/Dino.png";
+
+        const treeImg = new Image();
+        treeImg.src = "images/Agac.png";
+
+        // --- SES SİSTEMİ ---
+        const bgMusic = new Audio("images/noelsong.mp3");
+        bgMusic.loop = true;
+        let isMusicPlaying = false;
+
+        function startMusic() {
+            if (!isMusicPlaying) {
+                bgMusic.play().catch(err => console.log("Audio play delayed until interaction"));
+                isMusicPlaying = true;
+            }
+        }
+        // -------------------
+
+        // Oyun Değişkenleri
+        let score = 0;
+        let gameSpeed = 7;
+        let isGameOver = false;
+        let obstacles = [];
+        let frameCount = 0;
+        let animationId;
+        
+        // Ağaçların rastgele gelmesi için zamanlama hedefi (60 ile 150 frame arası rastgele)
+        let nextObstacleFrame = Math.floor(Math.random() * 90) + 60; 
+
+        // --- KAR EFEKTİ SİSTEMİ ---
+        const snowflakes = [];
+        for (let i = 0; i < 50; i++) {
+            snowflakes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 3 + 1,
+                speed: Math.random() * 2 + 1
+            });
+        }
+
+        function drawSnow() {
+            ctx.fillStyle = "white";
+            ctx.beginPath();
+            snowflakes.forEach(snow => {
+                ctx.moveTo(snow.x, snow.y);
+                ctx.arc(snow.x, snow.y, snow.radius, 0, Math.PI * 2);
+                snow.y += snow.speed;
+                if (snow.y > canvas.height) snow.y = -10;
+            });
+            ctx.fill();
+        }
+        // -------------------------
+
+        // Dinozor Nesnesi
+        const dino = {
+            x: 80,
+            y: canvas.height - 110,
+            width: 100, 
+            height: 100,
+            dy: 0,
+            jumpForce: 18, // Zıplama gücü
+            gravity: 0.7,  // Yerçekimi
+            grounded: true, // Başlangıçta yerde
+
+            draw() {
+                ctx.drawImage(dinoImg, this.x, this.y, this.width, this.height);
+            },
+
+            update() {
+                // Yerçekimi ve Hareket
+                this.y += this.dy;
+
+                if (this.y + this.height < canvas.height) {
+                    this.dy += this.gravity;
+                    this.grounded = false;
+                } else {
+                    this.dy = 0;
+                    this.grounded = true;
+                    this.y = canvas.height - this.height;
+                }
+                this.draw();
+            },
+
+            jump() {
+                startMusic(); // İlk zıplamada müziği başlatır
+                if (this.grounded) {
+                    this.dy = -this.jumpForce;
+                    this.grounded = false;
+                    console.log("Jumped!"); 
+                }
+            }
+        };
+
+        // Engel Sınıfı (Rastgele yükseklik ve genişlik eklendi)
+        class Obstacle {
+            constructor() {
+                // Temel boyutların %80'i ile %120'si arasında rastgele ölçeklendirme
+                let scale = Math.random() * 0.4 + 0.8; 
+                this.width = 70 * scale;
+                this.height = 90 * scale;
+                this.x = canvas.width;
+                this.y = canvas.height - this.height;
+            }
+            draw() {
+                ctx.drawImage(treeImg, this.x, this.y, this.width, this.height);
+            }
+            update() {
+                this.x -= gameSpeed;
+                this.draw();
+            }
+        }
+
+        function animate() {
+            if (isGameOver) return;
+
+            animationId = requestAnimationFrame(animate);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Kar efektini her karede çiz
+            drawSnow();
+
+            score++;
+            // Metin İngilizceye çevrildi
+            document.getElementById("score").innerText = `Score: ${Math.floor(score / 10)}`;
+
+            dino.update();
+
+            frameCount++;
+            // Ağaçların gelişi sabit 100 frame yerine rastgele belirlenen değişkene bağlandı
+            if (frameCount >= nextObstacleFrame) { 
+                obstacles.push(new Obstacle());
+                frameCount = 0;
+                // Bir sonraki ağaç için tekrar rastgele bir süre belirleniyor
+                nextObstacleFrame = Math.floor(Math.random() * 80) + 50; 
+            }
+
+            obstacles.forEach((obs, index) => {
+                obs.update();
+
+                // Çarpışma Kontrolü (Hitbox daraltıldı)
+                if (
+                    dino.x + 30 < obs.x + obs.width - 30 &&
+                    dino.x + dino.width - 30 > obs.x + 30 &&
+                    dino.y + 20 < obs.y + obs.height &&
+                    dino.y + dino.height > obs.y + 20
+                ) {
+                    gameOver();
+                }
+
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(index, 1);
+                }
+            });
+
+            gameSpeed += 0.001;
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            cancelAnimationFrame(animationId);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 50px Arial";
+            ctx.textAlign = "center";
+            // Metin İngilizceye çevrildi
+            ctx.fillText("Santa Got Stuck In The Chimney!", canvas.width / 2, canvas.height / 2 - 20);
+            resetBtn.style.display = "block"; // Butonu göster
+        }
+
+        function resetGame() {
+            // Değişkenleri sıfırla
+            isGameOver = false;
+            score = 0;
+            gameSpeed = 7;
+            obstacles = [];
+            frameCount = 0;
+            nextObstacleFrame = Math.floor(Math.random() * 90) + 60;
+            dino.y = canvas.height - dino.height;
+            dino.dy = 0;
+            resetBtn.style.display = "none"; // Butonu gizle
+            
+            // Oyun resetlendiğinde müzik durmuşsa veya baştan başlaması istenirse
+            bgMusic.currentTime = 0;
+            startMusic();
+
+            animate(); // Oyunu tekrar başlat
+        }
+
+        // --- KONTROLLER ---
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space" || e.code === "ArrowUp") {
+                e.preventDefault(); // Sayfanın kaymasını engeller
+                dino.jump();
+            }
+        });
+
+        // Fare/Dokunma desteği
+        canvas.addEventListener("mousedown", () => {
+            dino.jump();
+        });
+
+        // Görsellerin yüklenmesini bekle ve başlat
+        let imagesLoaded = 0;
+        const totalImages = 2;
+        function checkImages() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                animate();
+            }
+        }
+        dinoImg.onload = checkImages;
+        treeImg.onload = checkImages;
+
+    </script>
+</body>
+</html>

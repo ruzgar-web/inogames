@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Rhythm</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f8ff; /* Sabit renk */
+            transition: background-color 0.4s ease;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+
+        #high-score-box {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-weight: bold;
+            color: #1a237e;
+        }
+
+        #status {
+            font-size: 2.2rem;
+            margin-bottom: 20px;
+            color: #1a237e;
+            height: 60px;
+            text-align: center;
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            /* pointer-events kontrolü JS ile yapılacak */
+        }
+
+        .btn {
+            width: 140px;
+            height: 140px;
+            border-radius: 25px;
+            cursor: pointer;
+            border: 6px solid white;
+            transition: all 0.2s;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            opacity: 0.8;
+        }
+
+        .yellow { background-color: #ffeb3b; }
+        .blue   { background-color: #2196f3; }
+        .green  { background-color: #4caf50; }
+        .red    { background-color: #f44336; }
+
+        .active-btn {
+            transform: scale(1.1);
+            opacity: 1;
+            box-shadow: 0 0 40px rgba(255,255,255,1);
+            border-color: #fff;
+        }
+
+        #start-btn {
+            margin-top: 30px;
+            padding: 15px 45px;
+            font-size: 1.2rem;
+            background-color: #1a237e;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            display: block;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="high-score-box">Maximum Score: <span id="high-score">0</span></div>
+    <div id="status">Are You Ready?</div>
+
+    <div class="game-container" id="board" style="pointer-events: none;">
+        <div class="btn yellow" id="yellow" onclick="userClick('yellow')"></div>
+        <div class="btn blue" id="blue" onclick="userClick('blue')"></div>
+        <div class="btn green" id="green" onclick="userClick('green')"></div>
+        <div class="btn red" id="red" onclick="userClick('red')"></div>
+    </div>
+
+    <button id="start-btn" onclick="startGame()">START THE GAME</button>
+
+    <script>
+        let gameSequence = [];
+        let userSequence = [];
+        let level = 0;
+        let started = false;
+        let canClick = false;
+
+        const colors = ['yellow', 'blue', 'green', 'red'];
+        const frequencies = { yellow: 261.6, blue: 329.6, green: 392.0, red: 523.3 };
+        const bgColors = { yellow: "#fff59d", blue: "#90caf9", green: "#a5d6a7", red: "#ef9a9a" };
+
+        let highScore = localStorage.getItem("simonHighScore") || 0;
+        document.getElementById("high-score").innerText = highScore;
+
+        // Ses motorunu oluştur
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(color) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = frequencies[color];
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.4);
+        }
+
+        function activateButton(color) {
+            const btn = document.getElementById(color);
+            btn.classList.add('active-btn');
+            document.body.style.backgroundColor = bgColors[color];
+            playSound(color);
+
+            setTimeout(() => {
+                btn.classList.remove('active-btn');
+                document.body.style.backgroundColor = "#f0f8ff";
+            }, 400);
+        }
+
+        async function nextSequence() {
+            canClick = false;
+            document.getElementById("board").style.pointerEvents = "none";
+            userSequence = [];
+            level++;
+            document.getElementById('status').innerText = "Level " + level;
+            
+            const randomColor = colors[Math.floor(Math.random() * 4)];
+            gameSequence.push(randomColor);
+
+            // Bilgisayarın diziyi göstermesi
+            for (let i = 0; i < gameSequence.length; i++) {
+                await new Promise(r => setTimeout(r, 800));
+                activateButton(gameSequence[i]);
+            }
+
+            // Oyuncuya izin ver
+            setTimeout(() => {
+                canClick = true;
+                document.getElementById("board").style.pointerEvents = "auto";
+                document.getElementById('status').innerText = "It's Your Turn!";
+            }, 500);
+        }
+
+        function userClick(color) {
+            if (!started || !canClick) return;
+            activateButton(color);
+            userSequence.push(color);
+            checkAnswer(userSequence.length - 1);
+        }
+
+        function checkAnswer(currentIndex) {
+            if (userSequence[currentIndex] === gameSequence[currentIndex]) {
+                if (userSequence.length === gameSequence.length) {
+                    canClick = false;
+                    document.getElementById("board").style.pointerEvents = "none";
+                    document.getElementById('status').innerText = "Perfect!";
+                    updateHighScore();
+                    setTimeout(nextSequence, 1200);
+                }
+            } else {
+                gameOver();
+            }
+        }
+
+        function updateHighScore() {
+            if (level > highScore) {
+                highScore = level;
+                localStorage.setItem("simonHighScore", highScore);
+                document.getElementById("high-score").innerText = highScore;
+            }
+        }
+
+        function gameOver() {
+            document.getElementById('status').innerText = "You lost! Score: " + (level - 1);
+            document.body.style.backgroundColor = "#ffcdd2";
+            started = false;
+            canClick = false;
+            document.getElementById("board").style.pointerEvents = "none";
+            document.getElementById('start-btn').classList.remove('hidden');
+            document.getElementById('start-btn').innerText = "Restart";
+        }
+
+        function startGame() {
+            initAudio(); // Ses motorunu başlat
+            started = true;
+            level = 0;
+            gameSequence = [];
+            document.getElementById('start-btn').classList.add('hidden');
+            nextSequence();
+        }
+    </script>
+</body>
+</html>

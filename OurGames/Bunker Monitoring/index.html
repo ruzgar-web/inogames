@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUNKER MONITORING - FATAL ERROR</title>
+    <style>
+        :root { --neon-green: #00ff66; --dark-green: #002208; --alert-red: #ff0033; --panel-bg: #030407; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        body { background-color: #000; color: #cbd5e1; height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; overflow: hidden; }
+
+        /* BAŞLANGIÇ EKRANI */
+        #start-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a0000 0%, #000 100%); z-index: 999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #start-btn { background: #000; color: #ff0033; border: 2px solid #ff0033; padding: 25px 60px; font-size: 2.5rem; font-weight: 900; cursor: pointer; border-radius: 5px; transition: 0.1s; letter-spacing: 2px; }
+        #start-btn:hover { background: #ff0033; color: #000; transform: scale(1.05); }
+
+        /* ANA TERMİNAL */
+        #terminal-main { width: 100%; max-width: 1700px; height: 95vh; background: var(--panel-bg); border: 2px solid #111; display: grid; grid-template-columns: 3.8fr 1fr; grid-template-rows: 50px 1fr; gap: 20px; padding: 20px; box-shadow: inset 0 0 50px #000; display: none; position: relative; }
+        header { grid-column: 1 / -1; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; font-size: 1.2rem; color: #444; font-weight: bold; padding-bottom: 10px; }
+        header span.highlight { color: var(--neon-green); }
+
+        #viewport-container { background: #000; border: 5px solid #050505; position: relative; overflow: hidden; display: flex; }
+
+        /* TEHDİT ARAYÜZÜ */
+        #threat-panel { position: absolute; top: 20px; right: 20px; background: rgba(5,5,5,0.95); border: 1px solid #333; padding: 20px; z-index: 70; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.9); }
+        
+        .status-title { font-size:0.9rem; font-weight:bold; color:#888; display:flex; justify-content:space-between; margin-bottom: 5px; }
+        
+        #global-bar-bg { width: 100%; height: 25px; background: #111; border: 1px solid #222; position: relative; margin-bottom: 20px; }
+        #global-bar-fill { width: 0%; height: 100%; background: #ff0033; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 15px #ff0033; }
+        
+        #threat-location { font-size: 1.3rem; color: #d97706; font-weight: 900; margin-bottom: 12px; display: none; text-shadow: 0 0 10px #d97706; letter-spacing: 1px; text-align: center; }
+        #timer-box { font-size: 2.5rem; color: #fff; text-align: center; font-weight: bold; padding: 10px; background: #111; border: 1px solid #333; display: none; }
+
+        /* KEPENKLER */
+        .purge-door { position: absolute; left: 0; width: 100%; height: 50.5%; background: #0a0a0a; border: 4px solid #111; background-image: repeating-linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%, #111); background-size: 40px 40px; z-index: 80; transition: transform 0.15s ease-in-out; }
+        #door-top { top: 0; transform: translateY(-100%); border-bottom: 10px solid #d97706; }
+        #door-bottom { bottom: 0; transform: translateY(100%); border-top: 10px solid #d97706; }
+        .doors-closed #door-top, .doors-closed #door-bottom { transform: translateY(0); }
+
+        /* KAMERA OVERLAY EFEKTLERİ */
+        #crt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%); background-size: 100% 4px; pointer-events: none; z-index: 60; }
+        #vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.95) 100%); pointer-events: none; z-index: 65; }
+
+        /* JUMPSCARE LAYER (KORUNDU VE ASLA DOKUNULMADI) */
+        #jumpscare-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 95; display: none; justify-content: center; align-items: center; overflow: hidden; background: #fff; animation: strobeFlash 0.1s infinite; }
+        
+        @keyframes strobeFlash {
+            0% { background: #000; filter: invert(0); }
+            50% { background: #fff; filter: invert(1); }
+            100% { background: #f00; filter: invert(0); }
+        }
+
+        .nightmare-face { width: 150%; height: 150%; animation: violentShake 0.05s infinite; }
+
+        @keyframes violentShake {
+            0% { transform: translate(20px, -20px) scale(1.1) rotate(2deg); }
+            50% { transform: translate(-20px, 20px) scale(1.2) rotate(-2deg); }
+            100% { transform: translate(15px, 15px) scale(1.1) rotate(1deg); }
+        }
+
+        /* ANOMALİ ANİMASYONLARI */
+        .anomaly-layer { display: none; z-index: 50; position: relative; }
+        .pulse-meat { animation: meatPulse 1s infinite alternate; transform-origin: center; }
+        @keyframes meatPulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
+        
+        .twitch-body { animation: bodyTwitch 0.2s infinite; }
+        @keyframes bodyTwitch { 0% { transform: translateX(0); } 50% { transform: translateX(5px) rotate(1deg); } 100% { transform: translateX(-2px); } }
+        
+        .led-blink { animation: ledBlink 0.5s infinite alternate; }
+        @keyframes ledBlink { 0% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        svg.main-screen { width: 100%; height: 100%; }
+
+        /* YAN MENÜ */
+        #sidebar-controls { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+        .matrix-btn { background: #050505; color: #555; border: 1px solid #222; padding: 25px 20px; font-size: 1.1rem; font-weight: bold; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 8px; transition: 0.1s; }
+        .matrix-btn span { font-size: 0.8rem; color: #444; }
+        .matrix-btn.active { background: #081208; color: var(--neon-green); border-color: var(--neon-green); border-left: 10px solid var(--neon-green); }
+        
+        #purge-btn { margin-top: auto; background: #000; color: #d97706; border: 2px solid #d97706; padding: 35px 20px; font-size: 1.5rem; font-weight: 900; cursor: pointer; transition: 0.1s; }
+        #purge-btn:hover { background: #d97706; color: #000; }
+
+        #lockdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #050000; z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="start-overlay">
+    <h1 style="color:red; font-size: 4rem;">FATAL ERROR_</h1>
+    <p style="color:#888; font-size:1.2rem; margin: 30px 0;">Keep the speaker/headphone volume turned up. 3 mistakes = game over.</p>
+    <button id="start-btn" onclick="initGame()">START</button>
+</div>
+
+<div id="terminal-main">
+    <header>
+        <div>SYSTEM.CORE // <span class="highlight">OSECURE_v12</span></div>
+        <div>LIFE EXPECTANCY: <span id="timer-count" class="highlight">0</span>s</div>
+    </header>
+
+    <div id="viewport-container">
+        <div id="vignette"></div>
+        <div id="crt-overlay"></div>
+
+        <div id="threat-panel">
+            <div class="status-title">
+                <span>GLOBAL CONTAMINATION</span>
+                <span id="global-text" style="color: #ff0033;">%0</span>
+            </div>
+            <div id="global-bar-bg"><div id="global-bar-fill"></div></div>
+            
+            <div id="threat-location">!! AN ANOMALY HAS BEEN DETECTED !!</div>
+            <div id="timer-box">--</div>
+        </div>
+
+        <div id="jumpscare-layer">
+            <svg class="nightmare-face" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
+                <rect width="200" height="200" fill="#000"/>
+                <path d="M 20 100 Q 100 180 180 100 Q 150 130 100 150 Q 50 130 20 100 Z" fill="#ff0000"/>
+                <path d="M 25 105 L 35 130 L 45 108 L 55 135 L 65 110 L 75 140 L 85 112 L 95 145 L 105 112 L 115 140 L 125 110 L 135 135 L 145 108 L 155 130 L 165 105" fill="none" stroke="#fff" stroke-width="4"/>
+                <path d="M 30 100 L 40 70 L 50 95 L 60 65 L 70 90 L 80 60 L 90 85 L 100 55 L 110 85 L 120 60 L 130 90 L 140 65 L 150 95 L 160 70 L 170 100" fill="none" stroke="#fff" stroke-width="4"/>
+                <circle cx="60" cy="50" r="25" fill="#ff0000"/>
+                <circle cx="140" cy="40" r="30" fill="#ff0000"/>
+                <path d="M 50 70 L 50 200 M 70 70 L 70 200 M 130 60 L 130 200 M 150 60 L 150 200" stroke="#ff0000" stroke-width="10" stroke-linecap="round"/>
+                <circle cx="60" cy="50" r="5" fill="#000"/><circle cx="140" cy="40" r="5" fill="#000"/>
+            </svg>
+        </div>
+        
+        <div id="door-top" class="purge-door"></div>
+        <div id="door-bottom" class="purge-door"></div>
+
+        <svg viewBox="0 0 1200 700" class="main-screen">
+            <defs>
+                <pattern id="brick-wall" width="40" height="20" patternUnits="userSpaceOnUse">
+                    <rect width="40" height="20" fill="#080808" stroke="#000" stroke-width="2"/>
+                    <line x1="20" y1="0" x2="20" y2="10" stroke="#000" stroke-width="2"/>
+                    <line x1="0" y1="10" x2="40" y2="10" stroke="#000" stroke-width="2"/>
+                </pattern>
+                <pattern id="hazard-stripe" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width="20" height="40" fill="#111"/>
+                    <rect x="20" width="20" height="40" fill="#d97706"/>
+                </pattern>
+                <pattern id="grate-floor" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#111" stroke-width="2"/>
+                </pattern>
+                <linearGradient id="metal-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#1a1c23" />
+                    <stop offset="50%" stop-color="#2d3748" />
+                    <stop offset="100%" stop-color="#1a1c23" />
+                </linearGradient>
+                <linearGradient id="fluid-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="rgba(16, 185, 129, 0.1)" />
+                    <stop offset="100%" stop-color="rgba(16, 185, 129, 0.8)" />
+                </linearGradient>
+                <filter id="gore-glow"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                <filter id="neon-glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+
+            <g id="room-1">
+                <rect x="0" y="0" width="1200" height="700" fill="url(#brick-wall)"/>
+                <polygon points="0,450 1200,450 1200,700 0,700" fill="#040405"/>
+                <polygon points="0,450 1200,450 1200,700 0,700" fill="url(#grate-floor)"/>
+                <polygon points="0,450 1200,450 1200,480 0,480" fill="url(#hazard-stripe)"/>
+                <rect x="200" y="0" width="150" height="80" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <rect x="850" y="0" width="150" height="80" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <path d="M 275 80 L 275 150 M 925 80 L 925 150" stroke="#222" stroke-width="15" fill="none"/>
+                <path d="M 0 100 Q 300 200 600 50 T 1200 150" stroke="#111" stroke-width="10" fill="none"/>
+                <rect x="50" y="150" width="180" height="400" fill="url(#metal-grad)" stroke="#000" stroke-width="5"/>
+                <rect x="70" y="170" width="140" height="360" fill="#020305"/>
+                <g class="led-blink">
+                    <circle cx="90" cy="190" r="3" fill="#0f0" filter="url(#neon-glow)"/><circle cx="110" cy="190" r="3" fill="#0f0"/>
+                    <circle cx="90" cy="210" r="3" fill="#0f0"/><circle cx="110" cy="210" r="3" fill="#f00" filter="url(#neon-glow)"/>
+                    <circle cx="90" cy="230" r="3" fill="#0f0"/><circle cx="110" cy="230" r="3" fill="#0f0"/>
+                    <rect x="140" y="190" width="50" height="40" fill="#111" stroke="#333"/>
+                </g>
+                <path d="M 70 300 L 210 300 M 70 320 L 210 320 M 70 340 L 210 340" stroke="#1a1c23" stroke-width="4"/>
+                <rect x="970" y="150" width="180" height="400" fill="url(#metal-grad)" stroke="#000" stroke-width="5"/>
+                <rect x="990" y="170" width="140" height="360" fill="#020305"/>
+                <g class="led-blink" style="animation-delay: 0.2s;">
+                    <circle cx="1010" cy="400" r="3" fill="#f00" filter="url(#neon-glow)"/><circle cx="1030" cy="400" r="3" fill="#0f0"/>
+                    <circle cx="1010" cy="420" r="3" fill="#0f0"/><circle cx="1030" cy="420" r="3" fill="#0f0"/>
+                    <rect x="1060" y="400" width="50" height="40" fill="#111" stroke="#333"/>
+                </g>
+                <path d="M 990 250 L 1130 250 M 990 270 L 1130 270" stroke="#1a1c23" stroke-width="4"/>
+                <rect x="450" y="220" width="300" height="280" fill="url(#metal-grad)" stroke="#111" stroke-width="8"/>
+                <rect x="470" y="240" width="260" height="100" fill="#05070c" stroke="#333" stroke-width="2"/>
+                <rect x="480" y="250" width="100" height="80" fill="#001100" stroke="#0f0" stroke-width="1"/>
+                <path d="M 485 290 L 500 270 L 520 300 L 540 260 L 570 310" stroke="#0f0" stroke-width="2" fill="none" class="led-blink"/>
+                <rect x="620" y="250" width="100" height="80" fill="#110000" stroke="#f00" stroke-width="1"/>
+                <text x="635" y="295" fill="#f00" font-size="20" font-family="monospace" font-weight="bold" class="led-blink">ERR</text>
+                <rect x="470" y="360" width="260" height="120" fill="#0a0a0c" stroke="#111"/>
+                <circle cx="600" cy="420" r="30" fill="#111" stroke="#333" stroke-width="5"/>
+                <circle cx="600" cy="420" r="10" fill="#0f0" class="led-blink" filter="url(#neon-glow)"/>
+
+                <g id="anom-1-0" class="anomaly-layer pulse-meat">
+                    <path d="M 400 550 Q 600 400 800 550 Q 600 700 400 550 Z" fill="#991b1b" stroke="#4a0000" stroke-width="8"/>
+                    <circle cx="550" cy="540" r="15" fill="#000" stroke="#f00" stroke-width="2"/>
+                    <circle cx="650" cy="570" r="20" fill="#000" stroke="#f00" stroke-width="2"/>
+                    <path d="M 450 500 L 480 400 M 750 500 L 720 400" stroke="#ff0000" stroke-width="4" fill="none"/>
+                </g>
+            </g>
+
+            <g id="room-2" style="display:none;">
+                <rect x="0" y="0" width="1200" height="700" fill="#040a0e"/>
+                <path d="M 0 450 L 1200 450" stroke="#1e293b" stroke-width="8"/>
+                <path d="M 0 480 L 1200 480" stroke="#0f172a" stroke-width="4"/>
+                <rect x="100" y="80" width="250" height="370" fill="#0b1120" stroke="url(#metal-grad)" stroke-width="15" rx="10"/>
+                <rect x="110" y="200" width="230" height="240" fill="url(#fluid-grad)"/>
+                <circle cx="150" cy="350" r="5" fill="#fff" opacity="0.5"/>
+                <circle cx="200" cy="250" r="8" fill="#fff" opacity="0.3"/>
+                <circle cx="250" cy="400" r="4" fill="#fff" opacity="0.6"/>
+                <polygon points="225,100 205,140 245,140" fill="#d97706"/>
+                <text x="218" y="135" fill="#000" font-weight="bold" font-family="sans-serif">!</text>
+                <linearGradient id="fluid-red" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="rgba(220, 38, 38, 0.1)" />
+                    <stop offset="100%" stop-color="rgba(220, 38, 38, 0.8)" />
+                </linearGradient>
+                <rect x="850" y="80" width="250" height="370" fill="#0b1120" stroke="url(#metal-grad)" stroke-width="15" rx="10"/>
+                <rect x="860" y="250" width="230" height="190" fill="url(#fluid-red)"/>
+                <circle cx="950" cy="350" r="6" fill="#fff" opacity="0.4"/>
+                <circle cx="1020" cy="300" r="5" fill="#fff" opacity="0.5"/>
+                <rect x="400" y="450" width="400" height="200" fill="url(#metal-grad)" stroke="#1e293b" stroke-width="5"/>
+                <polygon points="400,450 450,400 750,400 800,450" fill="#131c2a" stroke="#1e293b" stroke-width="3"/>
+                <rect x="470" y="410" width="80" height="30" fill="#000" stroke="#333"/>
+                <rect x="650" y="410" width="80" height="30" fill="#000" stroke="#333"/>
+                <circle cx="500" cy="425" r="5" fill="#0f0" class="led-blink"/>
+                <circle cx="530" cy="425" r="5" fill="#f00"/>
+                <circle cx="670" cy="425" r="5" fill="#d97706"/>
+                <path d="M 580 400 L 580 340 L 620 300 L 620 280 L 640 280 L 640 330 L 600 370 L 600 400 Z" fill="#94a3b8" stroke="#334155" stroke-width="2"/>
+                <circle cx="580" cy="380" r="15" fill="#cbd5e1"/>
+                <line x1="560" y1="380" x2="600" y2="380" stroke="#333" stroke-width="3"/>
+
+                <g id="anom-2-0" class="anomaly-layer twitch-body">
+                    <path d="M 500 420 C 450 300, 550 200, 600 250 C 700 200, 750 350, 650 420 Z" fill="#020000" stroke="#2a0000" stroke-width="4"/>
+                    <path d="M 500 300 Q 400 350 420 450 M 680 300 Q 800 300 780 450" stroke="#020000" stroke-width="25" fill="none" stroke-linecap="round"/>
+                    <circle cx="560" cy="270" r="12" fill="#fff" filter="url(#gore-glow)"/><circle cx="560" cy="270" r="3" fill="#f00"/>
+                </g>
+            </g>
+
+            <g id="room-3" style="display:none;">
+                <rect x="0" y="0" width="1200" height="700" fill="#050505"/>
+                <path d="M 250 0 L 250 150 M 245 10 L 255 10 M 245 30 L 255 30 M 245 50 L 255 50" stroke="#333" stroke-width="8" fill="none"/>
+                <path d="M 950 0 L 950 200 M 945 20 L 955 20 M 945 40 L 955 40 M 945 60 L 955 60" stroke="#333" stroke-width="8" fill="none"/>
+                <rect x="150" y="0" width="40" height="700" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <rect x="450" y="0" width="40" height="700" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <rect x="750" y="0" width="40" height="700" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <rect x="1050" y="0" width="40" height="700" fill="url(#metal-grad)" stroke="#000" stroke-width="4"/>
+                <rect x="0" y="200" width="1200" height="25" fill="#1c1917"/>
+                <rect x="0" y="225" width="1200" height="5" fill="#000"/>
+                <rect x="0" y="450" width="1200" height="25" fill="#1c1917"/>
+                <rect x="0" y="475" width="1200" height="5" fill="#000"/>
+                <rect x="200" y="80" width="140" height="120" fill="#1a1107" stroke="#0a0602" stroke-width="4"/>
+                <path d="M 200 100 L 340 100 M 200 120 L 340 120 M 200 140 L 340 140 M 200 160 L 340 160 M 200 180 L 340 180" stroke="#0a0602" stroke-width="2"/>
+                <text x="230" y="150" fill="#d97706" font-size="24" font-weight="bold" opacity="0.6">SEC-09</text>
+                <rect x="500" y="280" width="200" height="170" fill="#111" stroke="#222" stroke-width="3"/>
+                <rect x="580" y="280" width="20" height="170" fill="#222"/>
+                <rect x="500" y="350" width="200" height="20" fill="#222"/>
+                <polygon points="550,300 530,330 570,330" fill="#d97706" opacity="0.7"/>
+                <path d="M 0 650 L 1200 650" stroke="#d97706" stroke-width="10" stroke-dasharray="50 20"/>
+
+                <g id="anom-3-0" class="anomaly-layer pulse-meat">
+                    <circle cx="600" cy="350" r="250" fill="none" stroke="#991b1b" stroke-width="15" filter="url(#gore-glow)"/>
+                    <polygon points="600,100 700,550 400,250 800,250 500,550" fill="none" stroke="#7f1d1d" stroke-width="10"/>
+                    <path d="M 600 350 Q 500 400 300 350 M 600 350 Q 700 300 900 350" stroke="#000" stroke-width="12" fill="none"/>
+                </g>
+            </g>
+
+            <g id="room-4" style="display:none;">
+                <rect x="0" y="0" width="1200" height="700" fill="#0a0502"/>
+                <circle cx="200" cy="600" r="150" fill="#fff" opacity="0.03" filter="url(#gore-glow)"/>
+                <circle cx="1000" cy="200" r="200" fill="#fff" opacity="0.02" filter="url(#gore-glow)"/>
+                <path d="M 100 0 L 100 700 M 200 0 L 200 700" fill="none" stroke="#1c0f0a" stroke-width="80"/>
+                <rect x="50" y="250" width="200" height="40" fill="#0a0502" stroke="#000" stroke-width="5"/>
+                <circle cx="150" cy="270" r="30" fill="url(#metal-grad)" stroke="#111" stroke-width="4"/>
+                <circle cx="150" cy="270" r="20" fill="#fff"/>
+                <line x1="150" y1="270" x2="165" y2="255" stroke="#f00" stroke-width="3"/>
+                <path d="M 1100 0 L 1100 700 M 1000 0 L 1000 700" fill="none" stroke="#1c0f0a" stroke-width="80"/>
+                <circle cx="1050" cy="500" r="50" fill="none" stroke="#d97706" stroke-width="15"/>
+                <path d="M 1000 500 L 1100 500 M 1050 450 L 1050 550" stroke="#d97706" stroke-width="10"/>
+                <circle cx="600" cy="400" r="240" fill="url(#metal-grad)" stroke="#000" stroke-width="15"/>
+                <circle cx="600" cy="400" r="220" fill="#0f0705" stroke="#291610" stroke-width="10"/>
+                <circle cx="600" cy="400" r="160" fill="#4a1505" stroke="#1c0a05" stroke-width="15"/>
+                <circle cx="600" cy="180" r="5" fill="#000"/><circle cx="600" cy="620" r="5" fill="#000"/>
+                <circle cx="380" cy="400" r="5" fill="#000"/><circle cx="820" cy="400" r="5" fill="#000"/>
+                <ellipse cx="600" cy="400" rx="150" ry="150" fill="#ff4500" opacity="0.4" filter="url(#gore-glow)"/>
+                <ellipse cx="600" cy="400" rx="100" ry="100" fill="#ffdd00" opacity="0.3" filter="url(#gore-glow)"/>
+
+                <g id="anom-4-0" class="anomaly-layer twitch-body">
+                    <path d="M 520 350 Q 600 250 680 350 Q 700 450 650 500 Q 600 550 550 500 Q 500 450 520 350 Z" fill="#4a0a0a"/>
+                    <circle cx="560" cy="380" r="25" fill="#000"/><circle cx="560" cy="380" r="5" fill="#ff4500"/>
+                    <circle cx="640" cy="380" r="25" fill="#000"/><circle cx="640" cy="380" r="5" fill="#ff4500"/>
+                    <path d="M 550 450 Q 600 500 650 450" stroke="#000" stroke-width="10" fill="none"/>
+                </g>
+                <line x1="480" y1="250" x2="480" y2="550" stroke="#050201" stroke-width="25"/>
+                <line x1="540" y1="240" x2="540" y2="560" stroke="#050201" stroke-width="25"/>
+                <line x1="600" y1="230" x2="600" y2="570" stroke="#050201" stroke-width="25"/>
+                <line x1="660" y1="240" x2="660" y2="560" stroke="#050201" stroke-width="25"/>
+                <line x1="720" y1="250" x2="720" y2="550" stroke="#050201" stroke-width="25"/>
+            </g>
+        </svg>
+    </div>
+
+    <div id="sidebar-controls">
+        <button class="matrix-btn active" id="b-1" onclick="selectCamera(1)">[CAM 01] SERVER R.</button>
+        <button class="matrix-btn" id="b-2" onclick="selectCamera(2)">[CAM 02] LAB AREA</button>
+        <button class="matrix-btn" id="b-3" onclick="selectCamera(3)">[CAM 03] STORAGE</button>
+        <button class="matrix-btn" id="b-4" onclick="selectCamera(4)">[CAM 04] BOILER</button>
+        <button id="purge-btn" onclick="executePurge()">[ PURIFY ]</button>
+    </div>
+
+    <div id="lockdown-overlay">
+        <h1 style="font-size: 8rem; color:red; margin-bottom: 20px; font-weight: 900;">YOU'RE DEAD</h1>
+        <p id="survival-time" style="font-size: 1.5rem; color: #888;"></p>
+        <button style="margin-top: 50px; background: transparent; border: 3px solid red; color: red; padding: 20px 40px; font-size: 2rem; cursor:pointer;" onclick="location.reload()">TRY AGAIN</button>
+    </div>
+</div>
+
+<script>
+    let currentCamera = 1;
+    let anomalyActive = false;
+    let currentAnomalyRoom = 0;
+    
+    let globalContamination = 0; 
+    let timeToCatch = 3; 
+    let localTimerInterval = null;
+    let spawnTimer = null;
+    
+    let totalTime = 0;
+    let timeInterval = null;
+    let isActionLocked = false; 
+    let isGameOver = false;
+
+    // AUDIO KONTROLLERİ (SES SENTEZLEYİCİSİ)
+    let audioCtx = null;
+    let ambientOsc = null;
+    let ambientGain = null;
+    let ambientLFO = null;
+
+    function initGame() {
+        document.getElementById('start-overlay').style.display = 'none';
+        document.getElementById('terminal-main').style.display = 'grid';
+        if(document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen().catch(e=>{}); }
+        
+        // Arka plan gerici sesini başlat
+        startAmbientSound();
+
+        timeInterval = setInterval(() => { 
+            totalTime++; 
+            document.getElementById('timer-count').innerText = totalTime; 
+        }, 1000);
+        
+        scheduleAnomaly();
+    }
+
+    function startAmbientSound() {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Derinden gelen korkunç uğultu (Drone)
+            ambientOsc = audioCtx.createOscillator();
+            ambientGain = audioCtx.createGain();
+            ambientOsc.type = 'sawtooth';
+            ambientOsc.frequency.setValueAtTime(45, audioCtx.currentTime); // Çok boğuk ve bas bir frekans
+            
+            // Uğultuyu dalgalandıran LFO (Gerilim efekti)
+            ambientLFO = audioCtx.createOscillator();
+            let lfoGain = audioCtx.createGain();
+            ambientLFO.frequency.setValueAtTime(0.8, audioCtx.currentTime); // Yavaş ritim
+            lfoGain.gain.setValueAtTime(8, audioCtx.currentTime); 
+            
+            // Düşük frekans filtresi (Sesi boğmak için)
+            let lpFilter = audioCtx.createBiquadFilter();
+            lpFilter.type = 'lowpass';
+            lpFilter.frequency.setValueAtTime(120, audioCtx.currentTime);
+
+            ambientLFO.connect(lfoGain);
+            lfoGain.connect(ambientOsc.frequency);
+            
+            ambientGain.gain.setValueAtTime(0.25, audioCtx.currentTime); // Arka planda kalacak ama gerecek seviye
+            
+            ambientOsc.connect(lpFilter);
+            lpFilter.connect(ambientGain);
+            ambientGain.connect(audioCtx.destination);
+            
+            ambientLFO.start();
+            ambientOsc.start();
+        } catch(e) { console.log("Ses motoru başlatılamadı:", e); }
+    }
+
+    function selectCamera(id) {
+        if (isActionLocked || isGameOver) return;
+        
+        document.querySelectorAll('.matrix-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`b-${id}`).classList.add('active');
+
+        for(let i=1; i<=4; i++) {
+            document.getElementById(`room-${i}`).style.display = 'none';
+        }
+        document.getElementById(`room-${id}`).style.display = 'block';
+        currentCamera = id;
+    }
+
+    function scheduleAnomaly() {
+        if(isGameOver) return;
+        const delay = Math.floor(Math.random() * 3000) + 3000; 
+        spawnTimer = setTimeout(spawnAnomaly, delay);
+    }
+
+    function spawnAnomaly() {
+        if(anomalyActive || isGameOver) return;
+        
+        currentAnomalyRoom = Math.floor(Math.random() * 4) + 1;
+        document.getElementById(`anom-${currentAnomalyRoom}-0`).style.display = 'block';
+
+        anomalyActive = true;
+        timeToCatch = 3; 
+        
+        document.getElementById('threat-location').style.display = 'block';
+        document.getElementById('timer-box').style.display = 'block';
+        document.getElementById('timer-box').innerText = `${timeToCatch}s`;
+
+        localTimerInterval = setInterval(() => {
+            timeToCatch--;
+            document.getElementById('timer-box').innerText = `${timeToCatch}s`;
+            
+            if(timeToCatch <= 0) {
+                clearInterval(localTimerInterval);
+                applyPenalty();
+            }
+        }, 1000);
+    }
+
+    function executePurge() {
+        if (isActionLocked || isGameOver) return;
+        
+        isActionLocked = true; 
+        document.getElementById('viewport-container').classList.add('doors-closed');
+        
+        setTimeout(() => {
+            if (anomalyActive) {
+                if (currentCamera === currentAnomalyRoom) {
+                    clearInterval(localTimerInterval);
+                    clearAnomalyVisuals();
+                    setTimeout(() => { 
+                        isActionLocked = false; 
+                        scheduleAnomaly(); 
+                    }, 3000);
+                } else {
+                    clearInterval(localTimerInterval);
+                    applyPenalty();
+                }
+            } else {
+                setTimeout(() => { isActionLocked = false; }, 3000);
+            }
+            
+            setTimeout(() => {
+                document.getElementById('viewport-container').classList.remove('doors-closed');
+            }, 500);
+        }, 500);
+    }
+
+    function applyPenalty() {
+        clearAnomalyVisuals();
+        
+        globalContamination += 34; 
+        document.getElementById('global-text').innerText = `%${globalContamination}`;
+        document.getElementById('global-bar-fill').style.width = `${Math.min(globalContamination, 100)}%`;
+
+        if (globalContamination >= 100) {
+            triggerJumpscare();
+        } else {
+            setTimeout(() => {
+                isActionLocked = false;
+                scheduleAnomaly();
+            }, 3000);
+        }
+    }
+
+    function clearAnomalyVisuals() {
+        anomalyActive = false;
+        if(currentAnomalyRoom !== 0) {
+            document.getElementById(`anom-${currentAnomalyRoom}-0`).style.display = 'none';
+        }
+        document.getElementById('threat-location').style.display = 'none';
+        document.getElementById('timer-box').style.display = 'none';
+    }
+
+    function triggerJumpscare() {
+        if(isGameOver) return;
+        isGameOver = true;
+        clearInterval(timeInterval);
+        clearTimeout(spawnTimer);
+        
+        // Arka plan sesini tamamen sustur
+        try {
+            if (ambientOsc) ambientOsc.stop();
+            if (ambientLFO) ambientLFO.stop();
+        } catch(e){}
+
+        const jumpLayer = document.getElementById('jumpscare-layer');
+        jumpLayer.style.display = 'flex';
+        
+        // 2 KAT DAHA ŞİDDETLİ KORKUNÇ JUMPSCARE ÇIĞLIĞI
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Katman 1: Yırtıcı Kalın Çığlık
+            let osc1 = audioCtx.createOscillator();
+            let gain1 = audioCtx.createGain();
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(90, audioCtx.currentTime);
+            osc1.frequency.linearRampToValueAtTime(5000, audioCtx.currentTime + 0.1); 
+            osc1.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 1.8);
+            
+            // Katman 2: Kulak Tırmalayan Metalik Metal Sesi
+            let osc2 = audioCtx.createOscillator();
+            let gain2 = audioCtx.createGain();
+            osc2.type = 'square';
+            osc2.frequency.setValueAtTime(1500, audioCtx.currentTime);
+            osc2.frequency.linearRampToValueAtTime(200, audioCtx.currentTime + 0.6);
+
+            // Katman 3: Şiddetli Beyaz Gürültü (Statik Patlama)
+            let bufferSize = audioCtx.sampleRate * 2;
+            let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            let data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            let noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            let noiseGain = audioCtx.createGain();
+
+            // Orta frekansları şişiren distorsiyon filtresi (Sesi iğrençleştirmek için)
+            let distortionFilter = audioCtx.createBiquadFilter();
+            distortionFilter.type = 'peaking';
+            distortionFilter.frequency.value = 1200;
+            distortionFilter.Q.value = 12;
+            distortionFilter.gain.value = 18; // Şiddetli distorsiyon kazancı
+
+            // ÇOK YÜKSEK DESİBEL AYARLARI (Öncekinin tam 2 katı kazanç)
+            gain1.gain.setValueAtTime(2.0, audioCtx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.8);
+            
+            gain2.gain.setValueAtTime(1.5, audioCtx.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+            
+            noiseGain.gain.setValueAtTime(2.0, audioCtx.currentTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+
+            // Bağlantılar
+            osc1.connect(distortionFilter);
+            osc2.connect(distortionFilter);
+            noise.connect(noiseGain);
+            noiseGain.connect(distortionFilter);
+            
+            distortionFilter.connect(audioCtx.destination);
+            
+            osc1.start(); osc2.start(); noise.start();
+            osc1.stop(audioCtx.currentTime + 2);
+            osc2.stop(audioCtx.currentTime + 2);
+            noise.stop(audioCtx.currentTime + 2);
+        } catch(e) {}
+
+        setTimeout(() => {
+            document.getElementById('survival-time').innerText = `SURVIVAL: ${totalTime} SECOND`;
+            document.getElementById('lockdown-overlay').style.display = 'flex';
+        }, 1200);
+    }
+</script>
+</body>
+</html>

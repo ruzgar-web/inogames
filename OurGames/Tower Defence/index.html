@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Tesla Tactical: Nuclear Masterpiece</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #010803; font-family: 'Arial Rounded MT Bold', 'Segoe UI', sans-serif; user-select: none; }
+        
+        #start-screen, #level-transition { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        #start-screen { background: radial-gradient(circle, #1b4332 0%, #020b05 100%); }
+        #level-transition { background: radial-gradient(circle, #023e8a 0%, #03045e 100%); display: none; }
+        
+        h1.title-text { color: #00f5d4; font-size: 60px; text-shadow: 0 10px 20px rgba(0,0,0,0.8); margin-bottom: 20px; text-align: center; }
+        #level-transition h1.title-text { color: #00b4d8; text-shadow: 0 10px 30px rgba(0,255,255,0.6); }
+
+        .action-btn { background: linear-gradient(180deg, #4cc9f0, #4361ee); border: none; padding: 20px 80px; font-size: 30px; border-radius: 50px; color: #fff; cursor: pointer; box-shadow: 0 10px 0 #3a0ca3; font-weight: bold; transition: 0.1s; }
+        .action-btn:active { transform: translateY(8px); box-shadow: 0 2px 0 #3a0ca3; }
+        #nextLevelBtn { background: linear-gradient(180deg, #00b4d8, #0077b6); box-shadow: 0 10px 0 #023e8a; }
+        #nextLevelBtn:active { box-shadow: 0 2px 0 #023e8a; }
+
+        #ui-layer { position: fixed; top: -100px; width: 100%; height: 100px; background: rgba(255, 255, 255, 0.95); display: flex; justify-content: center; align-items: center; z-index: 1000; border-bottom: 6px solid #4cc9f0; box-shadow: 0 10px 40px rgba(0,0,0,0.7); transition: top 0.5s ease; }
+        #stats { color: #1b4332; font-size: 24px; font-weight: bold; display: flex; align-items: center; gap: 20px; }
+        .stat-box { padding: 5px 20px; background: #eee; border-radius: 15px; border-bottom: 4px solid #4cc9f0; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1); }
+        button#nextBtn { background: linear-gradient(180deg, #4cc9f0, #4361ee); border: none; padding: 15px 50px; font-size: 22px; border-radius: 50px; color: #fff; cursor: pointer; box-shadow: 0 6px 0 #3a0ca3; font-weight: bold; margin-left: 30px; }
+        button#nextBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #3a0ca3; }
+        button#nextBtn:disabled { background: #6c757d; box-shadow: 0 6px 0 #495057; cursor: not-allowed; }
+
+        #shop { position: fixed; right: 20px; bottom: 20px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 20px; border: 5px solid #4cc9f0; width: 240px; box-shadow: 0 15px 40px rgba(0,0,0,0.4); z-index: 1001; display: none; max-height: 85vh; overflow-y: auto; }
+        .shop-title { text-align: center; color: #4361ee; font-size: 16px; margin-bottom: 8px; font-weight: bold; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+        .shop-item { background: #4895ef; color: white; border: none; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: bold; margin-bottom: 8px; width: 100%; transition: 0.2s; box-shadow: 0 4px 0 #3f37c9; font-size: 13px; }
+        .shop-item:active { transform: translateY(4px); box-shadow: 0 0 0 #3f37c9; }
+        .shop-item.char-btn { background: #f72585; box-shadow: 0 4px 0 #b5179e; }
+        .shop-item.bomber-btn { background: #7209b7; box-shadow: 0 4px 0 #560bad; }
+        .shop-item.hammer-btn { background: #555555; box-shadow: 0 4px 0 #2b2b2b; color: #ffca3a; }
+        .shop-item.ghost-btn { background: #e0e1dd; color: #1b263b; box-shadow: 0 4px 0 #778da9; }
+        .shop-item.bank-btn { background: #06d6a0; color: #073b4c; box-shadow: 0 4px 0 #04916c; }
+        .shop-item.laser-btn { background: linear-gradient(90deg, #00b4d8, #0077b6); color: white; box-shadow: 0 4px 0 #03045e; border: 2px solid #90e0ef; }
+
+        #card-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; z-index: 10000; }
+        
+        #info-card { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: #fffdf7; padding: 30px; border-radius: 24px; border: 8px solid #d4a373; 
+            width: 85vw; max-width: 500px; 
+            box-shadow: 0 25px 60px rgba(0,0,0,0.95); z-index: 10001; display: none; text-align: center; cursor: pointer; 
+            background-image: radial-gradient(#faedcd 10%, transparent 10%); background-size: 12px 12px; 
+        }
+        .card-header { background: #faedcd; color: #d4a373; border: 4px dashed #d4a373; padding: 10px; border-radius: 15px; font-size: 22px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }
+        .card-title { color: #d4a373; font-size: 36px; font-weight: bold; margin-bottom: 12px; text-shadow: 2px 2px 0 #fff; }
+        .card-desc { color: #5c4033; font-size: 18px; line-height: 1.5; margin-bottom: 20px; font-weight: bold; padding: 0 10px; }
+        #preview-canvas { width: 160px; height: 160px; background: #ffccd5; border: 6px solid #ff4d6d; border-radius: 20px; margin: 0 auto 15px auto; display: block; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); }
+
+        #place-info { position: fixed; top: 120px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 12px 25px; border-radius: 20px; font-size: 20px; display: none; z-index: 1002; border: 2px solid #fff; pointer-events: none; }
+
+        canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+<div id="start-screen">
+    <h1 class="title-text">⚡ TESLA TACTICAL 🏰</h1>
+    <button class="action-btn" onclick="initGame()">PLAY & FULLSCREEN</button>
+</div>
+
+<div id="level-transition">
+    <h1 id="trans-title" class="title-text">LEVEL 1 COMPLETED!</h1>
+    <p id="trans-desc" style="color:white; font-size:20px; margin-bottom: 30px;">Tower reinforced, Reinforcements Arrived. Deploy your soldiers again!</p>
+    <button class="action-btn" id="nextLevelBtn" onclick="startNextLevel()">GO TO NEXT LEVEL</button>
+</div>
+
+<div id="ui-layer">
+    <div id="stats">
+        <span>LEVEL: <span id="levelText" style="color:#fca311">1</span></span> |
+        <span>TURN: <span id="turnText" style="color:#4cc9f0">1</span></span> |
+        <span>💰 <span id="moneyText" class="stat-box">200</span></span> | 
+        <span>❤️ CASTLE: <span id="hpText" class="stat-box">100</span></span>
+    </div>
+    <button id="nextBtn" onclick="startTurn()">NEXT TURN ➔</button>
+</div>
+
+<div id="place-info">Click to place (Right click to cancel)</div>
+
+<div id="shop">
+    <div class="shop-title">🛠️ UPGRADES</div>
+    <button class="shop-item" onclick="buyUpgrade('dmg')">⚡ TESLA POWER (50)</button>
+    <button class="shop-item" onclick="buyUpgrade('repair')">🔧 CASTLE REPAIR (40)</button>
+    
+    <div class="shop-title" style="margin-top:15px;">💂‍♂️ TROOPS</div>
+    <button class="shop-item char-btn" onclick="buyCharacter('gunslinger')">🔫 GUNSLINGER (200)</button>
+    <button class="shop-item bomber-btn" onclick="buyCharacter('bomber')">💣 BOMBER (200)</button>
+    <button class="shop-item hammer-btn" id="shopHammer" style="display:none;" onclick="buyCharacter('hammer')">🔨 HAMMERMAN (150)</button>
+    <button class="shop-item laser-btn" id="shopLaser" style="display:none;" onclick="buyCharacter('superlaser')">💠 SUPER LASER (1000)</button>
+    <button class="shop-item ghost-btn" onclick="buyCharacter('ghost')">👻 GHOST (70)</button>
+    <button class="shop-item bank-btn" onclick="buyCharacter('bank')">🏦 BANK (100)</button>
+</div>
+
+<div id="card-overlay" onclick="closeInfoCard()"></div>
+<div id="info-card" onclick="closeInfoCard()">
+    <div id="card-content">
+        <div class="card-header">🚨 NEW ENEMY 🚨</div>
+        <canvas id="preview-canvas" width="160" height="160"></canvas>
+        <div class="card-title" id="dyn-title">...</div>
+        <div class="card-desc" id="dyn-desc">...</div>
+        <div style="color: #d4a373; font-size: 14px; margin-top: 5px;">(Click to close)</div>
+    </div>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let level = 1;
+    let nextLvlToStart = 2;
+    let money = 200, turn = 1, isAnimating = false, towerHp = 100, towerDmg = 1, maxTowerHp = 100;
+    let monsters = [], lightningTrails = [], gunTrails = [], particles = [], placedCharacters = [], textParticles = [];
+    let blastRings = [], potions = [], mageBeams = [], delayedBlasts = [], scorpionBeams = []; 
+    let towerPos = { x: 0, y: 0 };
+    const laneAngles = [0, 90, 180].map(a => a * Math.PI/180);
+    let scenery = [];
+    let cardsShown = { boss: false, red: false, spider: false, healer: false, mage: false, caterpillar: false, lavaProf: false, lavaSnake: false, tank: false, scorpion: false, jammer: false, witch: false, frog: false };
+    let screenShake = 0; 
+
+    let isPlacing = false, placeType = null, mousePos = { x: 0, y: 0 };
+
+    function initGame() {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        }
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('ui-layer').style.top = '0';
+        document.getElementById('shop').style.display = 'block';
+        resizeCanvas();
+        generateScenery(1);
+        monsters.push(new Monster('green'));
+        updateUI();
+        loop();
+    }
+
+    function hideTestButtons() {
+        // UI'dan sildiğim için bu fonksiyona gerek kalmadı, hatasız çalışması için içini boşalttım.
+    }
+
+    // Orijinal Level Geçiş Fonksiyonları (Seviye geçişleri checkDeaths içinden çağrılmaya devam edecek)
+   function forceLevelTwo() {
+        document.getElementById('level-transition').style.display = 'flex'; hideTestButtons();
+        document.getElementById('trans-title').innerHTML = "LEVEL 1 COMPLETED!<br>❄️ Winter Threat";
+        document.getElementById('trans-desc').innerText = "Tower reinforced (200 HP), 500 Gold Support Arrived.";
+        document.getElementById('level-transition').style.background = "radial-gradient(circle, #023e8a 0%, #03045e 100%)";
+        document.getElementById('trans-title').style.color = "#00b4d8";
+        nextLvlToStart = 2;
+    }
+    
+    function forceLevelThree() {
+        document.getElementById('level-transition').style.display = 'flex'; hideTestButtons();
+        document.getElementById('trans-title').innerHTML = "LEVEL 2 COMPLETED!<br>🌋 Magma Hell";
+        document.getElementById('trans-desc').innerText = "Tower at Maximum Power (300 HP), 1000 Gold Support Arrived. New Troop Unlocked!";
+        document.getElementById('level-transition').style.background = "radial-gradient(circle, #6a040f 0%, #370617 100%)";
+        document.getElementById('trans-title').style.color = "#ffba08";
+        nextLvlToStart = 3;
+    }
+
+    function forceLevelFour() {
+        document.getElementById('level-transition').style.display = 'flex'; hideTestButtons();
+        document.getElementById('trans-title').innerHTML = "LEVEL 3 COMPLETED!<br>🌕 Moon Base";
+        document.getElementById('trans-desc').innerText = "Space Age (400 HP), 1500 Gold Support. Legendary Hammerman Arrived!";
+        document.getElementById('level-transition').style.background = "radial-gradient(circle, #343a40 0%, #111111 100%)";
+        document.getElementById('trans-title').style.color = "#f8f9fa";
+        nextLvlToStart = 4;
+    }
+
+   function forceLevelFive() {
+        document.getElementById('level-transition').style.display = 'flex'; hideTestButtons();
+        document.getElementById('trans-title').innerHTML = "LEVEL 4 COMPLETED!<br>☢️ Nuclear Facility";
+        document.getElementById('trans-desc').innerText = "Final Stand (500 HP), 2000 Gold Support. Give it everything you've got!";
+        document.getElementById('level-transition').style.background = "radial-gradient(circle, #004b23 0%, #001a00 100%)";
+        document.getElementById('trans-title').style.color = "#70e000";
+        nextLvlToStart = 5;
+    }
+	
+    function startNextLevel() {
+        document.getElementById('level-transition').style.display = 'none';
+        
+        level = nextLvlToStart; turn = 1; placedCharacters = []; 
+        monsters = []; particles = []; potions = []; mageBeams = []; gunTrails = []; lightningTrails = []; blastRings = []; delayedBlasts = []; scorpionBeams = [];
+        
+        if (level === 2) { money = 500; maxTowerHp = 200; towerHp = 200; } 
+        else if (level === 3) { money = 1000; maxTowerHp = 300; towerHp = 300; document.getElementById('shopLaser').style.display = 'block'; } 
+        else if (level === 4) { money = 1500; maxTowerHp = 400; towerHp = 400; document.getElementById('shopLaser').style.display = 'block'; document.getElementById('shopHammer').style.display = 'block'; }
+        else if (level === 5) { money = 2000; maxTowerHp = 500; towerHp = 500; document.getElementById('shopLaser').style.display = 'block'; document.getElementById('shopHammer').style.display = 'block'; }
+
+        generateScenery(level); 
+        monsters.push(new Monster('green'));
+        updateUI();
+    }
+
+    canvas.addEventListener('mousemove', (e) => { mousePos.x = e.clientX; mousePos.y = e.clientY; });
+
+    function getCost(type) {
+        if(type === 'gunslinger' || type === 'bomber') return 200;
+        if(type === 'superlaser') return 1000;
+        if(type === 'hammer') return 150;
+        if(type === 'ghost') return 70;
+        if(type === 'bank') return 100;
+        return 0;
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (isPlacing) {
+            if (e.button === 2) { cancelPlacement(); } 
+            else if (e.button === 0) { 
+                let cost = getCost(placeType);
+                if (money >= cost) {
+                    money -= cost;
+                    placedCharacters.push(new Character(placeType, mousePos.x, mousePos.y));
+                    for(let i=0; i<15; i++) particles.push(new Particle(mousePos.x, mousePos.y, "#cccccc"));
+                    cancelPlacement(); updateUI();
+                }
+            }
+        } else {
+            if (e.button === 0 && !isAnimating) {
+                placedCharacters.forEach(c => {
+                    if (c.type === 'bank' && !c.dead) {
+                        if (Math.hypot(mousePos.x - c.x, mousePos.y - c.y) < 35) {
+                            if (c.activeInvestment > 0) { textParticles.push(new TextParticle(c.x, c.y - 20, "WAIT!", "#ffb703")); } 
+                            else if (money >= 20) { money -= 20; c.activeInvestment = 3; textParticles.push(new TextParticle(c.x, c.y - 20, "-20", "#ff0000")); updateUI(); }
+                        }
+                    }
+                });
+            }
+        }
+    });
+
+    function buyCharacter(type) { if (money >= getCost(type)) { isPlacing = true; placeType = type; document.getElementById('place-info').style.display = 'block'; } }
+    function cancelPlacement() { isPlacing = false; placeType = null; document.getElementById('place-info').style.display = 'none'; }
+
+    function getKillReward(type) {
+        if (['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(type)) return 5000;
+        if (type === 'tank') return 250; 
+        if (type === 'jammer' || type === 'witch') return 200;
+        if (type === 'lavaMonster') return 100;
+        if (type === 'mage' || type === 'healer') return 80;
+        if (type === 'boss' || type === 'red') return 50;
+        if (type === 'lavaProf') return 0;
+        if (type === 'enemyTurret' || type === 'guard') return 20;
+        return 20; 
+    }
+
+    function isBoss(m) {
+        let t = m.type.toLowerCase();
+        return t.includes('boss') || m.type === 'lavaMonster' || m.type === 'lavaSnake' || m.type === 'enemyTurret' || m.type === 'tank' || m.type === 'guard' || m.type === 'jammer' || m.type === 'witch' || m.type === 'frogBoss';
+    }
+
+    function drawHealer(ctx) {
+        ctx.fillStyle = "#1e3d33"; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-25, 25); ctx.lineTo(25, 25); ctx.fill();
+        ctx.fillStyle = "#2a9d8f"; ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(-20, 20); ctx.lineTo(20, 20); ctx.fill();
+        ctx.fillStyle = "#4a4e69"; ctx.beginPath(); ctx.fillRect(-15, 5, 30, 6);
+        ctx.fillStyle = "#2ec4b6"; ctx.beginPath(); ctx.arc(-10, 10, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, 10, 6, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#1b4332"; ctx.beginPath(); ctx.arc(0, -25, 14, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#e9c46a"; ctx.beginPath(); ctx.arc(0, -23, 8, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#d4a373"; ctx.beginPath(); ctx.fillRect(-22, -35, 4, 60);
+        ctx.shadowBlur = 15; ctx.shadowColor = "#00ff00";
+        ctx.fillStyle = "#52b788"; ctx.beginPath(); ctx.arc(-20, -38, 8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(-22, -40, 3, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawMage(ctx) {
+        ctx.shadowBlur = 20; ctx.shadowColor = "#d00000";
+        ctx.fillStyle = "rgba(157, 2, 8, 0.5)"; ctx.beginPath(); ctx.arc(0, 0, 30 + Math.sin(Date.now()/100)*3, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#370617";
+        for(let i=0; i<8; i++) { ctx.save(); ctx.rotate((Math.PI/4)*i); ctx.beginPath(); ctx.moveTo(-12, -15); ctx.lineTo(12, -15); ctx.lineTo(0, -40); ctx.fill(); ctx.restore(); }
+        ctx.fillStyle = "#9d0208"; ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#03071e"; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#ffba08"; ctx.beginPath(); ctx.arc(-4, -2, 3, 0, Math.PI*2); ctx.arc(4, -2, 3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#6f1d1b"; ctx.beginPath(); ctx.fillRect(20, -35, 6, 60); 
+        ctx.shadowBlur = 25; ctx.shadowColor = "#ffba08";
+        ctx.fillStyle = "#ffba08"; ctx.beginPath(); ctx.moveTo(23, -45); ctx.lineTo(30, -35); ctx.lineTo(23, -25); ctx.lineTo(16, -35); ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(23, -35, 3, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawCaterpillar(ctx, isBossCard = false) {
+        if(isBossCard) { ctx.scale(0.8, 0.8); ctx.rotate(Math.PI/2); }
+        let segs = 6;
+        for(let i=segs; i>=0; i--) { 
+            let offset = i * 14; let c = (i%2===0) ? "#ff4500" : "#1a1a1a"; 
+            ctx.fillStyle = c; ctx.beginPath(); ctx.arc(offset, 0, 22 - i*1.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#8b0000";
+            ctx.beginPath(); ctx.moveTo(offset, -18 + i); ctx.lineTo(offset-6, -28 + i); ctx.lineTo(offset+6, -28 + i); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(offset, 18 - i); ctx.lineTo(offset-6, 28 - i); ctx.lineTo(offset+6, 28 - i); ctx.fill();
+        }
+        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(-5, 0, 24, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ffba08"; ctx.beginPath(); ctx.arc(-12, -8, 5, 0, Math.PI*2); ctx.arc(-12, 8, 5, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#8b0000"; 
+        ctx.beginPath(); ctx.moveTo(-25, -12); ctx.lineTo(-40, -18); ctx.lineTo(-28, -5); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-25, 12); ctx.lineTo(-40, 18); ctx.lineTo(-28, 5); ctx.fill();
+    }
+
+    function drawLavaProf(ctx) {
+        ctx.fillStyle = "#d00000"; ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(-15, 20); ctx.lineTo(15, 20); ctx.fill(); 
+        ctx.fillStyle = "#ffb703"; ctx.beginPath(); ctx.arc(0, -20, 10, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.fillRect(-10, -25, 20, 5); 
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.fillRect(-8, -24, 6, 3); ctx.fillRect(2, -24, 6, 3);
+        ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(-15, 0, 8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ff5400"; ctx.beginPath(); ctx.arc(-15, 2, 6, 0, Math.PI*2); ctx.fill();
+    }
+
+    function drawLavaMonster(ctx) {
+        ctx.shadowBlur = 15; ctx.shadowColor = "#ff5400";
+        ctx.fillStyle = "#370617"; ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#ff5400"; for(let i=0; i<5; i++) { ctx.beginPath(); ctx.arc(-15 + Math.random()*30, -15 + Math.random()*30, 6, 0, Math.PI*2); ctx.fill(); }
+        ctx.fillStyle = "#6a040f"; ctx.beginPath(); ctx.arc(0, -25, 20, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#ffba08"; ctx.beginPath(); ctx.arc(-8, -30, 4, 0, Math.PI*2); ctx.arc(8, -30, 4, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#9d0208"; ctx.beginPath(); ctx.arc(-35, 0, 15, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(35, 0, 15, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawLavaSnake(ctx, isBossCard = false) {
+        if(isBossCard) { ctx.scale(0.8, 0.8); ctx.rotate(Math.PI/2); }
+        for(let i=10; i>=0; i--) {
+            let offset = i * 10; let wave = Math.sin(Date.now()/100 + i*0.5) * 8; 
+            let c = i%3===0 ? "#111" : (i%3===1 ? "#d00000" : "#ffba08"); if(i%4===0) c = "#0077b6"; 
+            ctx.fillStyle = c; ctx.beginPath(); ctx.arc(offset, wave, 18 - i*0.8, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(-10, Math.sin(Date.now()/100)*8, 22, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ff0000"; ctx.beginPath(); ctx.arc(-18, Math.sin(Date.now()/100)*8 - 7, 5, 0, Math.PI*2); ctx.arc(-18, Math.sin(Date.now()/100)*8 + 7, 5, 0, Math.PI*2); ctx.fill();
+    }
+
+    function drawEnemyTurret(ctx) {
+        ctx.fillStyle = "#edf2f4"; ctx.beginPath(); ctx.moveTo(-15, 15); ctx.lineTo(15, 15); ctx.lineTo(10, -10); ctx.lineTo(-10, -10); ctx.fill();
+        ctx.fillStyle = "#8d99ae"; ctx.beginPath(); ctx.fillRect(-4, -25, 8, 15);
+        ctx.fillStyle = "#00b4d8"; ctx.beginPath(); ctx.arc(0, -25, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#2b2d42"; ctx.beginPath(); ctx.fillRect(-12, -28, 24, 6); 
+    }
+
+    function drawTank(ctx, isCard=false) {
+        ctx.fillStyle = "#222"; 
+        ctx.beginPath(); ctx.roundRect(-25, -25, 50, 15, 5); ctx.fill(); 
+        ctx.beginPath(); ctx.roundRect(-25, 10, 50, 15, 5); ctx.fill();
+        ctx.fillStyle = "#444"; for(let i=-20; i<=20; i+=10) { ctx.beginPath(); ctx.fillRect(i, -25, 4, 15); ctx.fillRect(i, 10, 4, 15); }
+        ctx.fillStyle = "#6c757d"; ctx.beginPath(); ctx.fillRect(-15, -15, 30, 30);
+        ctx.fillStyle = "#343a40"; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#212529"; ctx.beginPath(); ctx.fillRect(-25, -3, 25, 6); 
+        ctx.fillStyle = "#ff0000"; ctx.beginPath(); ctx.fillRect(-29, -4, 4, 8); 
+    }
+
+    function drawScorpion(ctx, enraged, isBossCard = false) {
+        if (isBossCard) { ctx.scale(0.7, 0.7); ctx.rotate(Math.PI/2); }
+        let baseColor = enraged ? "#800000" : "#1a0000"; let detailColor = enraged ? "#ff0000" : "#4a0000";
+        
+        ctx.fillStyle = baseColor; 
+        for (let i = 0; i < 5; i++) { let tx = 25 + i * 10; let ty = -Math.sin(i * 0.6) * 15; ctx.beginPath(); ctx.arc(tx, ty, 8 - i, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = detailColor; ctx.beginPath(); ctx.moveTo(70, -10); ctx.lineTo(85, -25); ctx.lineTo(65, -15); ctx.fill();
+
+        ctx.strokeStyle = baseColor; ctx.lineWidth = 4;
+        for(let i=-1; i<=1; i++) {
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-15 + i*10, 30); ctx.lineTo(-25 + i*15, 40); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-15 + i*10, -30); ctx.lineTo(-25 + i*15, -40); ctx.stroke();
+        }
+
+        ctx.fillStyle = baseColor; ctx.beginPath(); ctx.ellipse(0, 0, 30, 20, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = detailColor; ctx.beginPath(); ctx.arc(-25, 0, 15, 0, Math.PI*2); ctx.fill();
+        
+        ctx.fillStyle = "#ff0000"; 
+        ctx.beginPath(); ctx.arc(-30, -5, 4, 0, Math.PI*2); ctx.arc(-30, 5, 4, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 10; ctx.shadowColor = "red"; ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(-31, -5, 1.5, 0, Math.PI*2); ctx.arc(-31, 5, 1.5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+
+        ctx.fillStyle = baseColor; ctx.beginPath(); ctx.arc(-40, -25, 12, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(-40, 25, 12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = detailColor; ctx.beginPath(); ctx.moveTo(-45, -25); ctx.lineTo(-65, -15); ctx.lineTo(-40, -10); ctx.fill(); ctx.beginPath(); ctx.moveTo(-45, 25); ctx.lineTo(-65, 15); ctx.lineTo(-40, 10); ctx.fill(); 
+    }
+
+    function drawJammer(ctx) {
+        ctx.fillStyle = "#212529"; ctx.beginPath(); ctx.fillRect(-15, -10, 30, 20);
+        ctx.fillStyle = "#adb5bd"; ctx.beginPath(); ctx.arc(0, -10, 15, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = "#6c757d"; ctx.beginPath(); ctx.fillRect(-2, -35, 4, 25);
+        ctx.fillStyle = "#f77f00"; ctx.beginPath(); ctx.arc(0, -38, 6, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "rgba(247, 127, 0, 0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -38, 12 + Math.sin(Date.now()/100)*4, 0, Math.PI*2); ctx.stroke();
+        ctx.fillStyle = "#495057"; ctx.beginPath(); ctx.fillRect(-20, 10, 10, 10); ctx.fillRect(10, 10, 10, 10);
+    }
+
+    function drawWitch(ctx) {
+        ctx.shadowBlur = 15; ctx.shadowColor = "#9d4edd";
+        ctx.fillStyle = "rgba(60, 9, 108, 0.4)"; ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#240046"; ctx.beginPath(); ctx.moveTo(0, -25); ctx.lineTo(-20, 25); ctx.lineTo(20, 25); ctx.fill();
+        ctx.fillStyle = "#7b2cbf"; ctx.beginPath(); ctx.arc(10, 0, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#e0aaff"; ctx.beginPath(); ctx.arc(10, 0, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#10002b"; ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(-15, -15); ctx.lineTo(15, -15); ctx.fill(); ctx.fillRect(-20, -15, 40, 5);
+    }
+
+    function drawGuard(ctx, hp) {
+        ctx.fillStyle = "#343a40"; ctx.beginPath(); ctx.roundRect(-12, -15, 24, 30, 4); ctx.fill();
+        ctx.fillStyle = "#00f5d4"; ctx.beginPath(); ctx.fillRect(-8, -10, 16, 4);
+        if (hp > 1) { 
+            ctx.shadowBlur = 10; ctx.shadowColor = "#00b4d8";
+            ctx.strokeStyle = "rgba(0, 180, 216, 0.8)"; ctx.lineWidth = 4; 
+            ctx.beginPath(); ctx.arc(0, 0, 22, -Math.PI/2, Math.PI/2); ctx.stroke(); 
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    function drawFrog(ctx, isCard = false) {
+        if(isCard) { ctx.scale(0.8, 0.8); ctx.rotate(Math.PI/2); }
+        ctx.fillStyle = "#004b23"; ctx.beginPath(); ctx.ellipse(-25, -25, 20, 10, Math.PI/4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(-25, 25, 20, 10, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#38b000"; ctx.beginPath(); ctx.ellipse(0, 0, 45, 35, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#001a00"; ctx.beginPath(); ctx.arc(-15, -15, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(10, -20, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(20, 15, 5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(-20, 20, 7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#70e000"; ctx.beginPath(); ctx.arc(35, 0, 25, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ff0000"; ctx.beginPath(); ctx.arc(45, -12, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(45, 12, 6, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(46, -12, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(46, 12, 2, 0, Math.PI*2); ctx.fill();
+    }
+
+    function showCard(type) {
+        const title = document.getElementById('dyn-title');
+        const desc = document.getElementById('dyn-desc');
+        const pCanvas = document.getElementById('preview-canvas');
+        const pCtx = pCanvas.getContext('2d');
+        
+        pCtx.clearRect(0, 0, 160, 160); pCtx.save(); pCtx.translate(80, 80); pCtx.scale(1.2, 1.2);
+
+       if(type === 'frogBoss') {
+            title.innerText = "Mutant Poison Frog";
+            desc.innerHTML = "<b>150 HP!</b> Every turn it extends its tongue to swallow a soldier and throws them at the castle as acid! Never advances, changes lanes!";
+            pCanvas.style.background = "#001a00"; pCanvas.style.borderColor = "#38b000"; drawFrog(pCtx, true);
+        } else if(type === 'jammer') {
+            title.innerText = "Jammer";
+            desc.innerHTML = "Does not move at all. Traps <b>1 soldier (except Bank/Ghost) every turn!</b> Reward: 200 Gold.";
+            pCanvas.style.background = "#212529"; pCanvas.style.borderColor = "#f77f00"; drawJammer(pCtx);
+        } else if(type === 'witch') {
+            title.innerText = "Dark Witch";
+            desc.innerHTML = "Every 2 turns, <b>summons a Guard</b> to the other 2 lanes except the one she is on! Reward: 200 Gold.";
+            pCanvas.style.background = "#3c096c"; pCanvas.style.borderColor = "#7b2cbf"; drawWitch(pCtx);
+        } else if(type === 'scorpionBoss') {
+            title.innerText = "Crimson Dark Scorpion";
+            desc.innerHTML = "<b>120 HP! 70 DAMAGE!</b> Initially <b>HEALS</b> itself; at half HP, goes berserk and <b>DESTROYS 1 SOLDIER</b> every turn!";
+            pCanvas.style.background = "#0d0000"; pCanvas.style.borderColor = "#ff0000"; drawScorpion(pCtx, true, true);
+        } else if(type === 'tank') {
+            title.innerText = "Demolition Tank";
+            desc.innerHTML = "DEALS 10 from a distance. <b>If it reaches the castle, it self-destructs DEALING 50 DAMAGE!</b> Reward: 250 Gold!";
+            pCanvas.style.background = "#dee2e6"; pCanvas.style.borderColor = "#495057"; drawTank(pCtx, true);
+        } else if(type === 'lavaSnake') {
+            title.innerText = "Lava Snake";
+            desc.innerHTML = "<b>100 HP! 60 DAMAGE!</b> Goes underground once every 3 turns and leaves behind a <b>TURRET</b> that shoots the castle!";
+            pCanvas.style.background = "#2b0a0a"; pCanvas.style.borderColor = "#ff4500"; drawLavaSnake(pCtx, true);
+        } else if(type === 'lavaProf') {
+            title.innerText = "Lava Professor";
+            desc.innerHTML = "<b>HAS 1 HP</b> but when killed, <b>transforms into an Ultra Powerful Lava Monster!</b>";
+            pCanvas.style.background = "#6a040f"; pCanvas.style.borderColor = "#ffba08"; drawLavaProf(pCtx);
+        } else if(type === 'healer') {
+            title.innerText = "Healer Cult";
+            desc.innerHTML = "Throws a potion every 3 turns to <b>FULLY HEAL</b> a wounded creature! Reward: 80 Gold!";
+            pCanvas.style.background = "#e0fbfc"; pCanvas.style.borderColor = "#2a9d8f"; drawHealer(pCtx);
+        } else if(type === 'mage') {
+            title.innerText = "Crimson Mage";
+            desc.innerHTML = "Does not move at all! Fires a laser dealing <b>10 DAMAGE</b> to the castle every 2 turns. Reward: 80 Gold!";
+            pCanvas.style.background = "#370617"; pCanvas.style.borderColor = "#d00000"; drawMage(pCtx);
+        } else if(type === 'caterpillarBoss') {
+            title.innerText = "Poison Devil Caterpillar";
+            desc.innerHTML = "<b>80 HP! 60 DAMAGE!</b> Goes underground and <b>CHANGES LANES</b> every 4 turns! Cannot be healed!";
+            pCanvas.style.background = "#2b0a0a"; pCanvas.style.borderColor = "#ff4500"; drawCaterpillar(pCtx, true);
+        } else if(type === 'spiderBoss') {
+            pCtx.scale(0.6, 0.6); pCtx.rotate(Math.PI/2);
+            title.innerText = "Giant Spider Boss";
+            desc.innerHTML = "<b>60 HP!</b> Binds 10 soldiers with webs every 3 turns. Reward: exactly <b>5000 Gold!</b>";
+            pCanvas.style.background = "#1a1a24"; pCanvas.style.borderColor = "#ff0054";
+            pCtx.strokeStyle = "#111"; pCtx.lineWidth = 6; pCtx.lineCap = "round"; pCtx.lineJoin = "round";
+            for(let i=0; i<4; i++) { let ang = (Math.PI/6) * (i + 1.5); pCtx.beginPath(); pCtx.moveTo(0, 0); pCtx.lineTo(Math.cos(ang)*45, Math.sin(ang)*45); pCtx.lineTo(Math.cos(ang)*65, Math.sin(ang)*65 + 20); pCtx.stroke(); pCtx.beginPath(); pCtx.moveTo(0, 0); pCtx.lineTo(Math.cos(-ang)*45, Math.sin(-ang)*45); pCtx.lineTo(Math.cos(-ang)*65, Math.sin(-ang)*65 - 20); pCtx.stroke(); }
+            pCtx.fillStyle = "#111"; pCtx.beginPath(); pCtx.ellipse(0, 0, 40, 30, 0, 0, Math.PI*2); pCtx.fill();
+            pCtx.beginPath(); pCtx.arc(35, 0, 20, 0, Math.PI*2); pCtx.fill(); 
+            pCtx.fillStyle = "#ff0000"; pCtx.beginPath(); pCtx.arc(45, -8, 4, 0, Math.PI*2); pCtx.arc(45, 8, 4, 0, Math.PI*2); pCtx.fill();
+        } else if(type === 'boss') {
+            title.innerText = "Yellow Giant Boss";
+            desc.innerHTML = "A tank with <b>4 HP</b>! Hard to destroy, but the reward is big (50).";
+            pCanvas.style.background = "#e9edc9"; pCanvas.style.borderColor = "#ccd5ae";
+            pCtx.fillStyle = "#fee440"; for(let i=0; i<8; i++) { pCtx.beginPath(); pCtx.arc(Math.cos(i)*16, Math.sin(i)*16, 22, 0, Math.PI*2); pCtx.fill(); }
+            pCtx.fillStyle = "black"; pCtx.beginPath(); pCtx.arc(-10,-8,4,0,Math.PI*2); pCtx.arc(10,-8,4,0,Math.PI*2); pCtx.fill();
+        } else {
+            title.innerText = "Crimson Assassin";
+            desc.innerHTML = "Waits in ambush and sneakily attacks the Castle. Watch out!";
+            pCanvas.style.background = "#ffccd5"; pCanvas.style.borderColor = "#ff4d6d";
+            pCtx.fillStyle = "#590d22"; for(let i=0; i<8; i++) { pCtx.save(); pCtx.rotate((Math.PI*2/8) * i); pCtx.beginPath(); pCtx.moveTo(-8, -25); pCtx.lineTo(8, -25); pCtx.lineTo(0, -42); pCtx.fill(); pCtx.restore(); }
+            pCtx.fillStyle = "#c9184a"; pCtx.beginPath(); pCtx.roundRect(-28, -28, 56, 56, 10); pCtx.fill();
+            pCtx.fillStyle = "black"; pCtx.beginPath(); pCtx.arc(-10,-8,4,0,Math.PI*2); pCtx.arc(10,-8,4,0,Math.PI*2); pCtx.fill();
+        }
+        pCtx.restore();
+        document.getElementById('info-card').style.display = 'block'; document.getElementById('card-overlay').style.display = 'block';
+    }
+
+    function closeInfoCard() { document.getElementById('info-card').style.display = 'none'; document.getElementById('card-overlay').style.display = 'none'; }
+
+    window.addEventListener('resize', resizeCanvas);
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; towerPos.x = canvas.width / 2; towerPos.y = canvas.height * 0.35; }
+
+    function generateScenery(lvl) {
+        scenery = []; 
+        let colors = [];
+        if (lvl === 1) colors = ["#2d6a4f", "#1b4332", "#40916c", "#52b788"];
+        else if (lvl === 2) colors = ["#caf0f8", "#90e0ef", "#00b4d8", "#e0fbfc"];
+        else if (lvl === 3) colors = ["#370617", "#6a040f", "#9d0208", "#d00000"];
+        else if (lvl === 4) colors = ["#d3d3d3", "#a9a9a9", "#808080", "#e5e5e5"]; 
+        else if (lvl === 5) colors = ["#004b23", "#008000", "#38b000", "#70e000"]; 
+
+        for(let i=0; i<100; i++) {
+            let x = Math.random() * 3000 - 1000; let y = Math.random() * 3000 - 1000;
+            if (Math.hypot(x - canvas.width/2, y - canvas.height*0.35) > 300) {
+                let isSecondary = Math.random() > 0.4;
+                if(lvl === 1) scenery.push({ x: x, y: y, type: isSecondary ? 'bush' : 'rock', size: 10 + Math.random() * 25, color: isSecondary ? colors[Math.floor(Math.random()*colors.length)] : "#495057" });
+                else if (lvl === 2) scenery.push({ x: x, y: y, type: isSecondary ? 'snow' : 'ice', size: 10 + Math.random() * 25, color: isSecondary ? colors[Math.floor(Math.random()*colors.length)] : "#0077b6" });
+                else if (lvl === 3) scenery.push({ x: x, y: y, type: isSecondary ? 'volcano' : 'magma_rock', size: 10 + Math.random() * 30, color: isSecondary ? colors[Math.floor(Math.random()*colors.length)] : "#2b0a0a" });
+                else if (lvl === 4) scenery.push({ x: x, y: y, type: isSecondary ? 'crater' : 'moon_rock', size: 15 + Math.random() * 35, color: isSecondary ? colors[Math.floor(Math.random()*colors.length)] : "#444" });
+                else if (lvl === 5) scenery.push({ x: x, y: y, type: isSecondary ? 'barrel' : 'uranium', size: 10 + Math.random() * 20, color: isSecondary ? colors[Math.floor(Math.random()*colors.length)] : "#001a00" });
+            }
+        }
+    }
+
+    class TextParticle {
+        constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.alpha = 1; this.vy = -1.5; }
+        draw() {
+            this.y += this.vy; this.alpha -= 0.02; ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+            ctx.fillStyle = this.color; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
+            ctx.shadowColor = "black"; ctx.shadowBlur = 4; ctx.lineWidth = 3;
+            ctx.strokeText(this.text, this.x, this.y); ctx.shadowBlur = 0; ctx.fillText(this.text, this.x, this.y); ctx.restore();
+        }
+    }
+
+    class Character {
+        constructor(type, x, y) {
+            this.type = type; this.x = x; this.y = y;
+            if (type === 'bank') this.range = 0;
+            else if (type === 'superlaser') this.range = 840;
+            else if (type === 'hammer') this.range = 80; 
+            else this.range = 280;
+            
+            this.dmg = type === 'hammer' ? 5 : 1; 
+            this.dead = false; this.state = 'idle'; this.targetMonster = null;
+            this.activeInvestment = 0; this.cooldown = 0; this.isWebbed = false; this.isJammed = false; 
+            this.animTimer = 0; 
+        }
+
+        update() {
+            if (this.dead) return;
+            if (this.animTimer > 0) this.animTimer--;
+
+            if (this.type === 'ghost' && this.state === 'attacking' && this.targetMonster) {
+                let dx = this.targetMonster.x - this.x; let dy = this.targetMonster.y - this.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist > 15) { this.x += (dx / dist) * 8; this.y += (dy / dist) * 8; } 
+                else {
+                    this.dead = true; screenShake = 25; 
+                    let reward = getKillReward(this.targetMonster.type);
+                    money += reward; updateUI();
+                    if(reward > 0) textParticles.push(new TextParticle(this.targetMonster.x, this.targetMonster.y - 20, "+" + reward, "#00ff00"));
+                    
+                    for(let i=0; i<60; i++) { 
+                        let p = new Particle(this.targetMonster.x, this.targetMonster.y, "rgba(230, 230, 230, 0.9)");
+                        p.size = Math.random() * 20 + 8; p.vx = (Math.random() - 0.5) * 12; p.vy = (Math.random() - 0.5) * 12 - 3; particles.push(p);
+                    }
+                    if (this.targetMonster.type === 'lavaProf') {
+                        let lm = new Monster('lavaMonster'); lm.dist = this.targetMonster.dist; lm.targetDist = this.targetMonster.targetDist; lm.angle = this.targetMonster.angle; lm.lane = this.targetMonster.lane;
+                        monsters.push(lm);
+                    }
+                    let idx = monsters.indexOf(this.targetMonster); if (idx > -1) monsters.splice(idx, 1);
+                }
+            }
+        }
+
+        draw() {
+            if (this.dead) return;
+            ctx.save(); let shakeX = 0, shakeY = 0;
+            if (this.type === 'ghost' && this.state === 'attacking') { shakeX = (Math.random() - 0.5) * 8; shakeY = (Math.random() - 0.5) * 8; }
+            ctx.translate(this.x + shakeX, this.y + shakeY);
+            ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(0, 15, 20, 8, 0, 0, Math.PI*2); ctx.fill();
+
+            if (this.type === 'gunslinger') {
+                ctx.fillStyle = "#2b2d42"; ctx.beginPath(); ctx.fillRect(-12, -8, 24, 22);
+                ctx.fillStyle = "#8d99ae"; ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(10, 10); ctx.lineTo(8, -15); ctx.lineTo(-8, -15); ctx.fill();
+                ctx.fillStyle = "#edf2f4"; ctx.beginPath(); ctx.arc(0, -20, 10, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#ef233c"; ctx.beginPath(); ctx.fillRect(-8, -23, 16, 4);
+                ctx.fillStyle = "#111"; ctx.beginPath(); ctx.fillRect(5, -12, 35, 4);
+                ctx.fillStyle = "#555"; ctx.beginPath(); ctx.fillRect(15, -14, 10, 8); 
+            } else if (this.type === 'bomber') {
+                ctx.fillStyle = "#3a5a40"; ctx.beginPath(); ctx.roundRect(-16, -15, 14, 28, 4); ctx.fill();
+                ctx.fillStyle = "#bc4749"; ctx.beginPath(); ctx.moveTo(-12, 12); ctx.lineTo(12, 12); ctx.lineTo(10, -12); ctx.lineTo(-10, -12); ctx.fill();
+                ctx.fillStyle = "#386641"; ctx.beginPath(); ctx.arc(0, -18, 12, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#f2e8cf"; ctx.beginPath(); ctx.arc(-5, -18, 4, 0, Math.PI*2); ctx.arc(5, -18, 4, 0, Math.PI*2); ctx.fill();
+                if (this.cooldown <= 0) {
+                    ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(16, 0, 9, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = "#ffb703"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(16, -9); ctx.lineTo(19, -15); ctx.stroke();
+                    ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(19, -15, 2, 0, Math.PI*2); ctx.fill();
+                }
+            } else if (this.type === 'superlaser') {
+                ctx.fillStyle = "#adb5bd"; ctx.beginPath(); ctx.fillRect(-15, -10, 30, 20); 
+                ctx.shadowBlur = 20; ctx.shadowColor = "#00b4d8";
+                ctx.fillStyle = "#00b4d8"; ctx.beginPath(); ctx.arc(0, -25, 15, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = "#03045e"; ctx.beginPath(); ctx.arc(0, -25, 8, 0, Math.PI*2); ctx.fill(); 
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "#90e0ef"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.ellipse(0, -25, 25, 8, Math.sin(Date.now()/300), 0, Math.PI*2); ctx.stroke(); 
+            } else if (this.type === 'hammer') {
+                ctx.fillStyle = "#555"; ctx.beginPath(); ctx.moveTo(-15, 15); ctx.lineTo(15, 15); ctx.lineTo(12, -15); ctx.lineTo(-12, -15); ctx.fill(); 
+                ctx.fillStyle = "#ffca3a"; ctx.beginPath(); ctx.arc(0, -22, 12, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = "#111"; ctx.beginPath(); ctx.fillRect(-8, -25, 16, 5); 
+                ctx.save();
+                let hammerAngle = 0;
+                if(this.animTimer > 0) hammerAngle = Math.sin((this.animTimer/15) * Math.PI) * (Math.PI/2); 
+                ctx.translate(10, -10); ctx.rotate(hammerAngle);
+                ctx.fillStyle = "#8b5a2b"; ctx.beginPath(); ctx.fillRect(-2, -30, 4, 40); 
+                ctx.fillStyle = "#ccc"; ctx.beginPath(); ctx.fillRect(-10, -35, 20, 15); 
+                ctx.fillStyle = "#999"; ctx.beginPath(); ctx.fillRect(-12, -32, 24, 9); 
+                ctx.restore();
+            } else if (this.type === 'ghost') {
+                let hover = Math.sin(Date.now() / 200) * 5; ctx.translate(0, hover);
+                ctx.fillStyle = "rgba(224, 225, 221, 0.85)"; ctx.beginPath(); ctx.arc(0, -20, 18, Math.PI, 0); 
+                ctx.lineTo(18, 5); ctx.lineTo(12, 0); ctx.lineTo(6, 5); ctx.lineTo(0, 0); ctx.lineTo(-6, 5); ctx.lineTo(-12, 0); ctx.lineTo(-18, 5); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = "#0d1b2a"; ctx.beginPath(); ctx.ellipse(-6, -20, 3, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(6, -20, 3, 5, 0, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === 'bank') {
+                ctx.fillStyle = "#4a4e69"; ctx.beginPath(); ctx.fillRect(-22, -30, 44, 40);
+                ctx.fillStyle = "#22223b"; ctx.beginPath(); ctx.moveTo(-28, -30); ctx.lineTo(28, -30); ctx.lineTo(0, -50); ctx.fill();
+                ctx.fillStyle = "#c9ada7"; ctx.beginPath(); ctx.fillRect(-10, -10, 20, 20);
+                ctx.fillStyle = "#ffd166"; ctx.beginPath(); ctx.arc(0, -15, 8, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#d4a373"; ctx.beginPath(); ctx.arc(0, -15, 5, 0, Math.PI*2); ctx.fill();
+                if (this.activeInvestment > 0) {
+                    ctx.fillStyle = "#ef233c"; ctx.beginPath(); ctx.arc(14, -35, 10, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = "white"; ctx.font = "bold 12px Arial"; ctx.textAlign="center"; ctx.fillText(this.activeInvestment, 14, -31);
+                }
+            }
+            
+            if (this.isWebbed) {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 1.5;
+                for(let r=8; r<=24; r+=8) { ctx.beginPath(); for(let i=0; i<=8; i++) { let a=(Math.PI/4)*i; ctx.lineTo(Math.cos(a)*r, -10+Math.sin(a)*r); } ctx.stroke(); }
+                for(let i=0; i<8; i++) { let a=(Math.PI/4)*i; ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(Math.cos(a)*24, -10+Math.sin(a)*24); ctx.stroke(); }
+            }
+            if (this.isJammed) {
+                ctx.strokeStyle = "#f77f00"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(0, -10, 25, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = "rgba(247, 127, 0, 0.2)"; ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    class Monster {
+        constructor(type) {
+            this.type = type;
+            this.lane = Math.floor(Math.random() * 3);
+            this.angle = laneAngles[this.lane];
+            
+            this.dist = ['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(type) ? 550 : 450; 
+            if (['mage', 'tank', 'jammer', 'witch'].includes(type)) this.dist = 380; 
+
+            this.stopDist = 220; 
+            this.stepSize = (['mage', 'enemyTurret', 'jammer', 'witch', 'frogBoss'].includes(type)) ? 0 : 100; 
+            this.targetDist = this.dist;
+
+            if (type === 'frogBoss') { this.hp = 150; this.color = "#38b000"; }
+            else if (type === 'spiderBoss') { this.hp = 60; this.color = "#111"; }
+            else if (type === 'caterpillarBoss') { this.hp = 80; this.color = "#ff4500"; }
+            else if (type === 'lavaSnake') { this.hp = 100; this.color = "#111"; }
+            else if (type === 'scorpionBoss') { this.hp = 120; this.color = "#1a0000"; }
+            else if (type === 'lavaMonster') { this.hp = 5; this.color = "#ff5400"; }
+            else if (type === 'lavaProf') { this.hp = 1; this.color = "#d00000"; }
+            else if (type === 'enemyTurret') { this.hp = 10; this.color = "#edf2f4"; }
+            else if (type === 'tank') { this.hp = 10; this.color = "#555"; }
+            else if (type === 'jammer' || type === 'witch') { this.hp = 3; this.color = (type==='jammer')?"#f77f00":"#7b2cbf"; }
+            else if (type === 'guard') { this.hp = 4; this.color = "#ced4da"; }
+            else if (type === 'mage' || type === 'healer') { this.hp = 3; this.color = (type === 'mage') ? "#9d0208" : "#2a9d8f"; }
+            else { this.hp = type === 'boss' ? 4 : (type === 'red' ? 3 : 2); this.color = type === 'boss' ? "#fee440" : (type === 'red' ? "#c9184a" : "#38b000"); }
+            
+            this.maxHp = this.hp;
+            this.turnCounter = 0;
+            this.waitingTurns = type === 'red' ? 5 : 0;
+            this.slamPhase = 0; this.hasDamagedThisTurn = false; this.willSlamUponArrival = false;
+            this.hasBomb = false; this.bombTimer = 0;
+            this.selfDestructed = false; 
+            
+            this.digAnim = 0; 
+            this.targetAngle = this.angle;
+            this.jammedTargets = []; 
+
+            // Kurbağa Boss İçin Özel Değişkenler
+            this.targetChar = null;
+            this.tongueProgress = 0;
+            this.tongueState = 'idle';
+            this.tongueWaitTimer = 0;
+            this.acidWaitTimer = 0;
+            this.jumpProgress = 1;
+            this.startX = this.x; this.startY = this.y;
+            this.targetX = this.x; this.targetY = this.y;
+            this.jumpZ = 0;
+        }
+
+        draw() {
+            // ================== KURBAĞA GÜNCELLEMELERİ ==================
+            if (this.type === 'frogBoss' && this.jumpProgress !== undefined && this.jumpProgress < 1) {
+                this.jumpProgress += 0.015; // Zıplama hızı
+                if (this.jumpProgress >= 1) {
+                    this.jumpProgress = 1;
+                    this.angle = this.targetAngle;
+                    this.dist = this.targetDist;
+                } else {
+                    let diff = this.targetAngle - this.startAngle;
+                    if (diff > Math.PI) diff -= Math.PI * 2;
+                    if (diff < -Math.PI) diff += Math.PI * 2;
+                    this.angle = this.startAngle + diff * this.jumpProgress;
+                    this.dist = this.startDist + (this.targetDist - this.startDist) * this.jumpProgress;
+                }
+                this.jumpZ = Math.sin(this.jumpProgress * Math.PI) * 150; // Zıplama yüksekliği
+            } else {
+                this.jumpZ = 0;
+            }
+
+            if (this.type === 'frogBoss' && this.tongueState !== undefined && this.tongueState !== 'idle') {
+                if (this.tongueState === 'out') {
+                    this.tongueProgress += 0.05; // Yavaş çıkış
+                    if (this.tongueProgress >= 1) {
+                        this.tongueProgress = 1;
+                        this.tongueState = 'wait';
+                        this.tongueWaitTimer = 60; // 1 saniye (60 kare) bekle
+                        if (this.targetChar) this.targetChar.isWebbed = true; 
+                    }
+                } else if (this.tongueState === 'wait') {
+                    this.tongueWaitTimer--;
+                    if (this.tongueWaitTimer <= 0) {
+                        this.tongueState = 'in';
+                    }
+                } else if (this.tongueState === 'in') {
+                    this.tongueProgress -= 0.01; // İki kat yavaş geri çekilme
+                    if (this.tongueProgress <= 0) {
+                        this.tongueProgress = 0;
+                        if (this.targetChar && !this.targetChar.dead) {
+                            this.targetChar.dead = true; // Yutuldu!
+                            for(let j=0; j<30; j++) particles.push(new Particle(this.targetChar.x, this.targetChar.y, "#ff0000")); // Askerin patlaması
+                        }
+                        this.tongueState = 'shoot_acid';
+                        this.acidWaitTimer = 10;
+                    }
+                } else if (this.tongueState === 'shoot_acid') {
+                    this.acidWaitTimer--;
+                    if (this.acidWaitTimer <= 0) {
+                        // Kuleye 20 hasar vuran asit gönder
+                        potions.push({x1: this.x, y1: this.y, x2: towerPos.x, y2: towerPos.y-50, timer: 30, type: 'acid'});
+                        this.tongueState = 'idle';
+                    }
+                }
+            }
+            // ============================================================
+
+            if (this.digAnim > 0) {
+                this.digAnim--;
+                if(this.type !== 'lavaSnake') {
+                    if(this.digAnim > 40) { this.scaleMult = (this.digAnim - 40) / 20; } 
+                    else if (this.digAnim > 20) { this.scaleMult = 0; this.angle = this.targetAngle; } 
+                    else { this.scaleMult = 1 - (this.digAnim / 20); }
+                }
+            } else { this.scaleMult = 1; }
+
+            if (this.slamPhase > 0) {
+                if (this.slamPhase === 1) { this.dist += 1.5; if (this.dist >= this.stopDist + 35) this.slamPhase = 2; } 
+                else if (this.slamPhase === 2) {
+                    this.dist -= 4;
+                    if (this.dist <= this.stopDist) {
+                        this.dist = this.stopDist; this.slamPhase = 0; 
+                        if (!this.hasDamagedThisTurn) {
+                            this.hasDamagedThisTurn = true;
+                            let dmg = 10;
+                            if (['spiderBoss', 'caterpillarBoss', 'lavaSnake'].includes(this.type)) dmg = 60;
+                            else if (this.type === 'scorpionBoss') dmg = 70;
+                            else if (this.type === 'lavaMonster') dmg = 30;
+                            else if (['guard', 'boss'].includes(this.type)) dmg = 20;
+                            
+                            towerHp -= dmg;
+                            for(let i=0; i<30; i++) particles.push(new Particle(towerPos.x, towerPos.y-50, "#ff0000"));
+                            screenShake = (['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss'].includes(this.type)) ? 30 : 15; updateUI();
+                        }
+                    }
+                }
+            } else {
+                if (!['enemyTurret', 'tank', 'jammer', 'witch', 'frogBoss'].includes(this.type)) {
+                    if (this.waitingTurns <= 0 && this.dist > this.targetDist) {
+                        let speed = (this.type === 'red' && this.targetDist <= this.stopDist) ? 40 : 6; 
+                        this.dist -= speed;
+                        if (this.dist <= this.stopDist) { this.dist = this.stopDist; if (this.willSlamUponArrival) { this.willSlamUponArrival = false; this.slamPhase = 1; } }
+                    }
+                } else if (this.type === 'tank') {
+                    if (this.dist > this.targetDist) {
+                        this.dist -= 6;
+                        if (this.dist <= this.stopDist) this.dist = this.stopDist;
+                    }
+                }
+            }
+
+            this.x = towerPos.x + Math.cos(this.angle) * this.dist;
+            this.y = towerPos.y + Math.sin(this.angle) * this.dist;
+
+            ctx.save(); 
+            ctx.translate(this.x, this.y); 
+
+            if (this.type === 'lavaSnake' && this.digAnim > 0) {
+                ctx.rotate(this.digAnim * 0.2);
+                ctx.scale(this.digAnim / 120, this.digAnim / 120);
+                drawLavaSnake(ctx); 
+                if(this.digAnim === 1) this.angle = this.targetAngle; 
+                ctx.restore();
+                return;
+            }
+
+            let scaleBase = this.scaleMult || 1;
+            if (this.type === 'frogBoss') scaleBase += (this.jumpZ / 400); // Zıplarken büyüyüp küçülme
+
+            ctx.translate(0, -this.jumpZ);
+            ctx.scale(scaleBase, scaleBase);
+            
+            if(this.waitingTurns > 0) {
+                ctx.strokeStyle = "rgba(255,0,0,0.8)"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(0,0, 40 + Math.sin(Date.now()/80)*15, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = "white"; ctx.font = "bold 20px Arial"; ctx.fillText(this.waitingTurns, -5, -50);
+            }
+
+            ctx.save(); // SADECE GÖVDE DÖNDÜRMELERİ İÇİN SAVE
+            
+            // ============== SADECE BOSSLAR İÇİN KULEYE BAKIŞ ==============
+            let drawAngle = this.angle;
+            if (['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(this.type)) {
+                drawAngle = Math.atan2(towerPos.y - this.y, towerPos.x - this.x);
+            }
+
+            if(this.type === 'frogBoss') {
+                ctx.rotate(drawAngle + Math.PI); drawFrog(ctx);
+                
+                // Kurbağa Dili Çizimi
+                if (this.tongueProgress > 0 && this.targetChar) {
+                    ctx.save();
+                    let tx = this.targetChar.x - this.x;
+                    let ty = this.targetChar.y - this.y;
+                    ctx.rotate(-drawAngle - Math.PI); // Vücut rotasyonunu iptal et
+                    ctx.rotate(Math.atan2(ty, tx)); // Dili tam hedefe doğru uzat
+                    
+                    let dToChar = Math.hypot(tx, ty);
+                    ctx.fillStyle = "#ff4d6d";
+                    ctx.fillRect(40, -5, (dToChar - 40) * this.tongueProgress, 10);
+                    ctx.beginPath(); ctx.arc(40 + (dToChar - 40) * this.tongueProgress, 0, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+
+            } else if(this.type === 'spiderBoss') {
+                ctx.rotate(drawAngle + Math.PI); 
+                let legWiggle = (this.slamPhase > 0 || this.dist > this.targetDist) ? Math.sin(Date.now()/50)*10 : 0;
+                ctx.strokeStyle = "#111"; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
+                for(let i=0; i<4; i++) {
+                    let ang = (Math.PI/6) * (i + 1.5);
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ang)*45, Math.sin(ang)*45); ctx.lineTo(Math.cos(ang)*65, Math.sin(ang)*65 + 20 + legWiggle); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(-ang)*45, Math.sin(-ang)*45); ctx.lineTo(Math.cos(-ang)*65, Math.sin(-ang)*65 - 20 - legWiggle); ctx.stroke();
+                }
+                ctx.fillStyle = "#111"; ctx.beginPath(); ctx.ellipse(0, 0, 40, 30, 0, 0, Math.PI*2); ctx.fill(); 
+                
+                // ÖRÜMCEK İÇİN KIRMIZI SAVAŞ DETAYLARI
+                ctx.strokeStyle = "#ff0000"; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(-20, -10); ctx.lineTo(0, 10); ctx.lineTo(20, -10); ctx.stroke(); // V deseni
+                ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.stroke(); // Daire desen
+
+                ctx.beginPath(); ctx.arc(35, 0, 20, 0, Math.PI*2); ctx.fill(); 
+                ctx.fillStyle = "#ff0000"; ctx.beginPath(); ctx.arc(45, -8, 4, 0, Math.PI*2); ctx.arc(45, 8, 4, 0, Math.PI*2); ctx.fill();
+            } else if (this.type === 'caterpillarBoss') {
+                ctx.rotate(drawAngle + Math.PI); 
+                let wiggle = (this.slamPhase > 0 || this.dist > this.targetDist) ? Math.sin(Date.now()/50)*5 : 0;
+                ctx.translate(wiggle, 0);
+                drawCaterpillar(ctx);
+                if(this.digAnim > 20 && this.digAnim < 40) { ctx.fillStyle = "#495057"; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill(); }
+            } else if (this.type === 'lavaSnake') {
+                ctx.rotate(drawAngle + Math.PI); drawLavaSnake(ctx);
+            } else if (this.type === 'scorpionBoss') {
+                ctx.rotate(drawAngle + Math.PI); drawScorpion(ctx, this.hp <= this.maxHp / 2);
+            } else if (this.type === 'lavaProf') {
+                drawLavaProf(ctx);
+            } else if (this.type === 'lavaMonster') {
+                drawLavaMonster(ctx);
+            } else if (this.type === 'enemyTurret') {
+                ctx.rotate(drawAngle + Math.PI); drawEnemyTurret(ctx);
+            } else if (this.type === 'tank') {
+                ctx.rotate(drawAngle + Math.PI); drawTank(ctx);
+            } else if (this.type === 'healer') {
+                drawHealer(ctx);
+            } else if (this.type === 'mage') {
+                drawMage(ctx);
+            } else if (this.type === 'jammer') {
+                drawJammer(ctx);
+            } else if (this.type === 'witch') {
+                drawWitch(ctx);
+            } else if (this.type === 'guard') {
+                ctx.rotate(drawAngle + Math.PI); drawGuard(ctx, this.hp);
+            } else if (this.type === 'boss') {
+                ctx.fillStyle = this.color;
+                for(let i=0; i<8; i++) { ctx.beginPath(); ctx.arc(Math.cos(i)*16, Math.sin(i)*16, 22, 0, Math.PI*2); ctx.fill(); }
+                ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(-10,-8,4,0,Math.PI*2); ctx.arc(10,-8,4,0,Math.PI*2); ctx.fill();
+            } else if (this.type === 'red') {
+                ctx.fillStyle = "#590d22";
+                for(let i=0; i<8; i++) { ctx.save(); ctx.rotate((Math.PI*2/8) * i); ctx.beginPath(); ctx.moveTo(-8, -25); ctx.lineTo(8, -25); ctx.lineTo(0, -42); ctx.fill(); ctx.restore(); }
+                ctx.fillStyle = this.color; ctx.beginPath(); ctx.roundRect(-28, -28, 56, 56, 10); ctx.fill();
+                ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(-10,-8,4,0,Math.PI*2); ctx.arc(10,-8,4,0,Math.PI*2); ctx.fill();
+            } else {
+                ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.roundRect(-25, -25, 50, 50, 15); ctx.fill();
+                ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(-10,-8,4,0,Math.PI*2); ctx.arc(10,-8,4,0,Math.PI*2); ctx.fill();
+            }
+            ctx.restore(); // GÖVDE DÖNDÜRMELERİ BİTİŞ
+
+            if(this.hasBomb) {
+                let pulse = Math.sin(Date.now()/80) * 4;
+                ctx.fillStyle = '#7209b7'; ctx.beginPath(); ctx.arc(0, -45, 12 + pulse/2, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(0, -45, 4, 0, Math.PI*2); ctx.fill();
+            }
+
+            // CAN BARI HİÇBİR ZAMAN DÖNMEZ, HEP GÖRÜNÜR!
+            if (!['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(this.type)) {
+                ctx.fillStyle = "rgba(0,0,0,0.5)"; 
+                ctx.beginPath(); ctx.roundRect(-30, -60, 60, 8, 4); ctx.fill();
+                
+                let hpRatio = this.hp / this.maxHp;
+                if(hpRatio < 0) hpRatio = 0;
+                
+                if(hpRatio > 0.6) ctx.fillStyle = "#00ff00"; 
+                else if(hpRatio > 0.3) ctx.fillStyle = "#ffb703"; 
+                else ctx.fillStyle = "#ff0000";
+                
+                if(this.hp > 0) { 
+                    ctx.beginPath(); ctx.roundRect(-30, -60, hpRatio * 60, 8, 4); ctx.fill(); 
+                }
+            }
+            
+            ctx.restore(); // ANA RESTORE
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color; this.size = Math.random() * 5 + 2;
+            const angle = Math.random() * Math.PI * 2; const speed = Math.random() * 8 + 1;
+            this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed; this.alpha = 1;
+        }
+        draw() {
+            this.x += this.vx; this.y += this.vy; this.alpha -= 0.02;
+            ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
+    }
+
+    function checkDeaths() {
+        let bossDefeatedThisTurn = false;
+        let newSpawns = [];
+        monsters = monsters.filter(m => {
+            if(m.hp <= 0) { 
+                if (m.type === 'lavaProf') {
+                    let lm = new Monster('lavaMonster'); lm.dist = m.dist; lm.targetDist = m.targetDist; lm.angle = m.angle; lm.lane = m.lane;
+                    newSpawns.push(lm); screenShake = 20; for(let i=0; i<40; i++) particles.push(new Particle(m.x, m.y, "#ff4500"));
+                    return false; 
+                }
+                
+                if (m.type === 'jammer') { m.jammedTargets.forEach(t => t.isJammed = false); }
+
+                if (!m.selfDestructed) {
+                    let reward = getKillReward(m.type);
+                    money += reward;
+                    if(reward > 0) textParticles.push(new TextParticle(m.x, m.y - 20, "+" + reward, "#00ff00"));
+                }
+
+                let pColor = isBoss(m) ? "#ff0000" : m.color; 
+                let pCount = isBoss(m) ? 100 : 20;
+                for(let i=0; i<pCount; i++) particles.push(new Particle(m.x, m.y, pColor));
+                
+                if (['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(m.type)) bossDefeatedThisTurn = true;
+                return false; 
+            }
+            return true; 
+        });
+        monsters.push(...newSpawns); 
+
+        if (bossDefeatedThisTurn) {
+            if (level === 1) {
+                document.getElementById('level-transition').style.display = 'flex';
+                document.getElementById('trans-title').innerHTML = "LEVEL 1 COMPLETED!<br>❄️ Winter Threat";
+                document.getElementById('trans-desc').innerText = "Tower reinforced (200 HP), 500 Gold Support Arrived.";
+                document.getElementById('level-transition').style.background = "radial-gradient(circle, #023e8a 0%, #03045e 100%)";
+                document.getElementById('trans-title').style.color = "#00b4d8";
+                nextLvlToStart = 2;
+            } else if (level === 2) {
+                document.getElementById('level-transition').style.display = 'flex';
+                document.getElementById('trans-title').innerHTML = "LEVEL 2 COMPLETED!<br>🌋 Magma Hell";
+                document.getElementById('trans-desc').innerText = "Tower at Maximum Power (300 HP), 1000 Gold Support Arrived. New Troop Unlocked!";
+                document.getElementById('level-transition').style.background = "radial-gradient(circle, #6a040f 0%, #370617 100%)";
+                document.getElementById('trans-title').style.color = "#ffba08";
+                nextLvlToStart = 3;
+            } else if (level === 3) {
+                document.getElementById('level-transition').style.display = 'flex';
+                document.getElementById('trans-title').innerHTML = "LEVEL 3 COMPLETED!<br>🌕 Moon Base";
+                document.getElementById('trans-desc').innerText = "Space Age (400 HP), 1500 Gold Support. Legendary Hammerman Arrived!";
+                document.getElementById('level-transition').style.background = "radial-gradient(circle, #343a40 0%, #111111 100%)";
+                document.getElementById('trans-title').style.color = "#f8f9fa";
+                nextLvlToStart = 4;
+            } else if (level === 4) {
+                document.getElementById('level-transition').style.display = 'flex';
+                document.getElementById('trans-title').innerHTML = "LEVEL 4 COMPLETED!<br>☢️ Nuclear Facility";
+                document.getElementById('trans-desc').innerText = "Final Stand (500 HP), 2000 Gold Support. Give it everything you've got!";
+                document.getElementById('level-transition').style.background = "radial-gradient(circle, #004b23 0%, #001a00 100%)";
+                document.getElementById('trans-title').style.color = "#70e000";
+                nextLvlToStart = 5;
+            } else if (level === 5) {
+                document.getElementById('trans-title').innerHTML = "CONGRATULATIONS!<br>🏆 YOU WON THE GAME!";
+                document.getElementById('trans-desc').innerText = "You defeated all bosses, saved the Universe and the Nuclear Facility! You are legendary!";
+                document.getElementById('level-transition').style.background = "radial-gradient(circle, #ffba08 0%, #d00000 100%)";
+                document.getElementById('nextLevelBtn').style.display = 'none';
+                document.getElementById('level-transition').style.display = 'flex';
+            }
+            isAnimating = false; document.getElementById('nextBtn').disabled = false; updateUI();
+        }
+    }
+
+    function drawScene() {
+        ctx.save();
+        if (screenShake > 0) { ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake); screenShake *= 0.85; if (screenShake < 0.5) screenShake = 0; }
+
+        let bg = ctx.createRadialGradient(towerPos.x, towerPos.y, 100, towerPos.x, towerPos.y, canvas.width);
+        if (level === 1) { bg.addColorStop(0, "#2d6a4f"); bg.addColorStop(1, "#081c15"); } 
+        else if (level === 2) { bg.addColorStop(0, "#0077b6"); bg.addColorStop(1, "#03045e"); } 
+        else if (level === 3) { bg.addColorStop(0, "#9d0208"); bg.addColorStop(1, "#370617"); } 
+        else if (level === 4) { bg.addColorStop(0, "#a9a9a9"); bg.addColorStop(1, "#111111"); } 
+        else if (level === 5) { bg.addColorStop(0, "#004b23"); bg.addColorStop(1, "#001a00"); } 
+        ctx.fillStyle = bg; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        scenery.forEach(s => { 
+            if(s.type === 'crater') {
+                ctx.fillStyle = "#888"; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.size, s.size*0.7, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#666"; ctx.beginPath(); ctx.ellipse(s.x-s.size*0.1, s.y+s.size*0.1, s.size*0.8, s.size*0.5, 0, 0, Math.PI*2); ctx.fill();
+            } else if(s.type === 'barrel') {
+                ctx.fillStyle = "#333"; ctx.beginPath(); ctx.fillRect(s.x-10, s.y-15, 20, 30);
+                ctx.fillStyle = "#38b000"; ctx.beginPath(); ctx.fillRect(s.x-10, s.y-5, 20, 10);
+                ctx.fillStyle = "#111"; ctx.beginPath(); ctx.ellipse(s.x, s.y-15, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+            } else if(s.type === 'uranium') {
+                ctx.fillStyle = "#70e000"; ctx.shadowBlur = 10; ctx.shadowColor = "#70e000";
+                ctx.beginPath(); ctx.moveTo(s.x, s.y-s.size); ctx.lineTo(s.x+s.size/2, s.y+s.size/2); ctx.lineTo(s.x-s.size/2, s.y+s.size/2); ctx.fill();
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.fillStyle = s.color; 
+                if(s.type === 'ice') { 
+                    ctx.beginPath(); ctx.moveTo(s.x, s.y - s.size*1.5); ctx.lineTo(s.x-s.size/2, s.y); ctx.lineTo(s.x+s.size/2, s.y); ctx.fill();
+                } else if (s.type === 'volcano') {
+                    ctx.fillStyle = "#6a040f"; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x-s.size, s.y+s.size*1.5); ctx.lineTo(s.x+s.size, s.y+s.size*1.5); ctx.fill();
+                    ctx.fillStyle = "#ffba08"; ctx.beginPath(); ctx.moveTo(s.x-s.size/4, s.y+s.size/2); ctx.lineTo(s.x, s.y); ctx.lineTo(s.x+s.size/4, s.y+s.size/2); ctx.fill();
+                } else {
+                    ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+                    if(['bush', 'snow', 'magma_rock', 'moon_rock'].includes(s.type)) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(s.x, s.y, s.size/2, 0, Math.PI*2); ctx.fill(); }
+                }
+            }
+        });
+
+        laneAngles.forEach((a) => {
+            ctx.save(); ctx.translate(towerPos.x, towerPos.y); ctx.rotate(a);
+            ctx.fillStyle = level === 1 ? "rgba(0,0,0,0.15)" : (level === 2 ? "rgba(255,255,255,0.1)" : (level === 4 ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.3)")); ctx.fillRect(220, -40, 1500, 80); ctx.restore();
+        });
+
+        ctx.fillStyle = level === 1 ? "#7f5539" : (level === 2 ? "#48cae4" : (level===4 ? "#ccc" : (level===5?"#004b23":"#6a040f"))); ctx.beginPath(); ctx.arc(towerPos.x, towerPos.y, 195, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = level === 1 ? "#a0522d" : (level === 2 ? "#0096c7" : (level===4 ? "#999" : (level===5?"#70e000":"#ffba08"))); ctx.lineWidth = 4;
+        for(let r=50; r<190; r+=45) { ctx.beginPath(); ctx.arc(towerPos.x, towerPos.y, r, 0, Math.PI*2); ctx.stroke(); }
+
+        blastRings.forEach((ring, i) => {
+            let alpha = ring.life / ring.maxLife; ctx.save(); ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI*2);
+            if(ring.color === '#aaaaaa') {
+                ctx.fillStyle = `rgba(150, 150, 150, ${alpha * 0.3})`; ctx.fill(); 
+                ctx.lineWidth = 4; ctx.strokeStyle = `rgba(200, 200, 200, ${alpha * 0.8})`; ctx.stroke();
+            } else {
+                ctx.fillStyle = ring.color === '#00b4d8' ? `rgba(0, 180, 216, ${alpha * 0.3})` : `rgba(255, 140, 0, ${alpha * 0.3})`; ctx.fill(); 
+                ctx.lineWidth = 4; ctx.strokeStyle = ring.color === '#00b4d8' ? `rgba(0, 119, 182, ${alpha * 0.8})` : `rgba(255, 69, 0, ${alpha * 0.8})`; ctx.stroke();
+            }
+            ctx.restore(); ring.life--; if (ring.life <= 0) blastRings.splice(i, 1);
+        });
+
+        delayedBlasts.forEach((db, i) => {
+            db.timer--;
+            ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = "#00f5d4";
+            ctx.fillStyle = `rgba(0, 180, 216, ${0.5 + Math.sin(Date.now()/50)*0.5})`;
+            ctx.beginPath(); ctx.arc(db.x, db.y, 20 + (60-db.timer)/2, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+
+            if (db.timer <= 0) {
+                let blastRadius = 200;
+                blastRings.push({x: db.x, y: db.y, radius: blastRadius, life: 20, maxLife: 20, color: '#00b4d8'});
+                monsters.forEach(other => { if (Math.hypot(other.x - db.x, other.y - db.y) <= blastRadius && other.digAnim <= 40) { other.hp -= 5; } });
+                screenShake = 25; 
+                for(let j=0; j<40; j++) { let p = new Particle(db.x, db.y, "#00b4d8"); p.vx*=3; p.vy*=3; particles.push(p); }
+                delayedBlasts.splice(i, 1);
+                checkDeaths(); 
+            }
+        });
+
+        placedCharacters.forEach(c => { c.update(); c.draw(); });
+
+        if (isPlacing && placeType) {
+            ctx.save(); ctx.translate(mousePos.x, mousePos.y);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.1)"; ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"; ctx.lineWidth = 2;
+            let rng = 280; if(placeType==='superlaser') rng=840; else if(placeType==='hammer') rng=80;
+            if(getCost(placeType) > 100) { ctx.beginPath(); ctx.arc(0, 0, rng, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+            ctx.globalAlpha = 0.5; let tempChar = new Character(placeType, 0, 0); tempChar.draw(); ctx.restore();
+        }
+
+        ctx.save(); ctx.translate(towerPos.x, towerPos.y);
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.beginPath(); ctx.ellipse(0, 20, 70, 25, 0, 0, Math.PI*2); ctx.fill(); 
+        ctx.fillStyle = "#2b2d42"; ctx.beginPath(); ctx.roundRect(-45, -70, 90, 90, 10); ctx.fill(); 
+        ctx.fillStyle = "#14151f"; ctx.beginPath(); ctx.fillRect(-35, -30, 70, 15); 
+        let coilGrad = ctx.createLinearGradient(-30, 0, 30, 0);
+        coilGrad.addColorStop(0, "#d68c45"); coilGrad.addColorStop(0.5, "#ffb703"); coilGrad.addColorStop(1, "#d68c45");
+        ctx.fillStyle = coilGrad;
+        for(let i=0; i<4; i++) { ctx.beginPath(); ctx.roundRect(-35 + (i*4), -90 - (i*14), 70 - (i*8), 10, 4); ctx.fill(); }
+        let pulse = 35 + Math.sin(Date.now()/150)*8; 
+        ctx.shadowBlur = 50; ctx.shadowColor = "#00f5d4";
+        ctx.fillStyle = "#00bbf9"; ctx.beginPath(); ctx.arc(0, -170, pulse, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(-8, -178, pulse/2.5, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0; ctx.restore();
+
+        monsters.forEach((m) => m.draw());
+        
+        lightningTrails.forEach((l, i) => {
+            ctx.shadowBlur = 15; ctx.shadowColor = "#00f5d4"; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5; 
+            ctx.beginPath(); ctx.moveTo(l.x1, l.y1);
+            let midX = (l.x1 + l.x2) / 2 + (Math.random() * 40 - 20); let midY = (l.y1 + l.y2) / 2 + (Math.random() * 40 - 20);
+            ctx.lineTo(midX, midY); ctx.lineTo(l.x2, l.y2); ctx.stroke();
+            ctx.shadowBlur = 0; l.timer--; if(l.timer <= 0) lightningTrails.splice(i, 1);
+        });
+
+        mageBeams.forEach((b, i) => {
+            ctx.shadowBlur = 20; ctx.shadowColor = b.color || "#d00000"; ctx.strokeStyle = b.color || "#ff4d6d"; ctx.lineWidth = b.width || 8;
+            ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+            ctx.shadowBlur = 0; b.timer--; if(b.timer <= 0) mageBeams.splice(i, 1);
+        });
+
+        potions.forEach((p, i) => {
+            let prog = 1 - (p.timer / (p.type==='acid'?30:25));
+            let cx = p.x1 + (p.x2 - p.x1) * prog;
+            let cy = p.y1 + (p.y2 - p.y1) * prog - Math.sin(prog * Math.PI) * 120;
+            ctx.shadowBlur = 10; 
+            if(p.type === 'acid') { ctx.shadowColor = "#38b000"; ctx.fillStyle = "#70e000"; } 
+            else { ctx.shadowColor = "#00ff00"; ctx.fillStyle = "#2ec4b6"; }
+            ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(cx-2, cy-2, 3, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            p.timer--; 
+            
+            if(p.timer <= 0) {
+                if(p.type === 'acid') {
+                    // Kuleye 20 hasar ve sarsıntı
+                    towerHp -= 20; 
+                    screenShake = 15;
+                    textParticles.push(new TextParticle(towerPos.x, towerPos.y-60, "-20 ASİT!", "#70e000"));
+                    updateUI();
+                }
+                potions.splice(i, 1);
+            }
+        });
+
+        scorpionBeams.forEach((b, i) => {
+            ctx.shadowBlur = 15; 
+            if (b.type === 'heal') {
+                ctx.shadowColor = "#00ff00"; ctx.strokeStyle = "#52b788"; ctx.lineWidth = 6;
+                ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.quadraticCurveTo(b.x1 + 30, b.y1 - 50, b.x2, b.y2); ctx.stroke();
+            } else if (b.type === 'tongue') {
+                ctx.shadowColor = "#ff0000"; ctx.strokeStyle = "#ff4500"; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+                ctx.fillStyle = "#ffb703"; ctx.beginPath(); ctx.fillRect(b.x2-8, b.y2-8, 16, 16); 
+            } else {
+                ctx.shadowColor = "#ff0000"; ctx.strokeStyle = "#d00000"; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+            }
+            ctx.shadowBlur = 0; 
+            b.timer--; if(b.timer <= 0) scorpionBeams.splice(i, 1);
+        });
+
+        gunTrails.forEach((t, i) => {
+            let maxT = t.type === 'superlaser' ? 40 : 15;
+            let p = 1 - (t.timer / maxT); let cx = t.x1 + (t.x2 - t.x1) * p; let cy = t.y1 + (t.y2 - t.y1) * p;
+            
+            if(t.type === 'superlaser') {
+                ctx.strokeStyle = "#00f5d4"; ctx.lineWidth = 8; ctx.shadowBlur = 20; ctx.shadowColor = "#00b4d8";
+                ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(cx, cy); ctx.stroke(); ctx.shadowBlur = 0;
+            } else if(t.type === 'bomb') {
+                ctx.fillStyle = "#7209b7"; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.fill();
+            } else if(t.type === 'web') {
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI*2);
+                for(let w=0; w<8; w++) { let wa=(Math.PI/4)*w; ctx.moveTo(cx, cy); ctx.lineTo(cx+Math.cos(wa)*15, cy+Math.sin(wa)*15); }
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = "rgba(255, 180, 0, 0.9)"; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke();
+                if (t.timer > 12) { ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(t.x1, t.y1, 10, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = "#ffb703"; ctx.beginPath(); ctx.arc(t.x1, t.y1, 6, 0, Math.PI*2); ctx.fill(); }
+                ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.atan2(t.y2 - t.y1, t.x2 - t.x1));
+                ctx.fillStyle = "#ffb703"; ctx.beginPath(); ctx.roundRect(-6, -2, 12, 4, 2); ctx.fill(); ctx.restore();
+                if (t.timer <= 2) { ctx.fillStyle = "#fca311"; ctx.beginPath(); ctx.arc(t.x2, t.y2, 10, 0, Math.PI*2); ctx.fill(); }
+            }
+            
+            t.timer--; 
+            if(t.timer <= 0) {
+                if (t.type === 'superlaser') delayedBlasts.push({x: t.x2, y: t.y2, timer: 60}); 
+                gunTrails.splice(i, 1);
+            }
+        });
+
+        let bigBoss = monsters.find(m => ['spiderBoss', 'caterpillarBoss', 'lavaSnake', 'scorpionBoss', 'frogBoss'].includes(m.type));
+        if (bigBoss) {
+            ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            let bc = "#ff0054"; if(bigBoss.type==='caterpillarBoss') bc="#ff4500"; else if(bigBoss.type==='lavaSnake') bc="#00b4d8"; else if(bigBoss.type==='scorpionBoss') bc="#800000"; else if(bigBoss.type==='frogBoss') bc="#38b000";
+            ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.strokeStyle = bc; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.roundRect(20, 150, 40, canvas.height - 300, 10); ctx.fill(); ctx.stroke();
+            let hpRatio = bigBoss.hp / bigBoss.maxHp; if(hpRatio < 0) hpRatio = 0;
+            ctx.fillStyle = "#ff0000"; let barHeight = (canvas.height - 308) * hpRatio;
+            ctx.beginPath(); ctx.roundRect(24, 154 + (canvas.height - 308) - barHeight, 32, barHeight, 6); ctx.fill();
+            ctx.translate(40, 130); ctx.fillStyle = "white"; ctx.font = "bold 20px Arial"; ctx.textAlign = "center";
+            ctx.shadowBlur = 5; ctx.shadowColor = "red"; 
+            let bName = "BOSS"; if(bigBoss.type==='spiderBoss') bName="GIANT SPIDER"; else if(bigBoss.type==='caterpillarBoss') bName="ZEHİRLİ TIRTIL"; else if(bigBoss.type==='lavaSnake') bName="LAV YILANI"; else if (bigBoss.type==='scorpionBoss') bName="RED SCORPION"; else if (bigBoss.type==='frogBoss') bName="MUTANT FROG";
+            ctx.fillText(bName, 0, 0); ctx.restore();
+        }
+
+        particles.forEach((p, i) => { p.draw(); if(p.alpha <= 0) particles.splice(i, 1); });
+        textParticles.forEach((tp, i) => { tp.draw(); if(tp.alpha <= 0) textParticles.splice(i, 1); });
+        ctx.restore(); 
+    }
+
+    function buyUpgrade(t) {
+        if(t === 'dmg' && money >= 50) { money -= 50; towerDmg++; }
+        if(t === 'repair' && money >= 40) { money -= 40; towerHp = Math.min(maxTowerHp, towerHp + 25); }
+        updateUI();
+    }
+
+    function getPriorityTarget(char, range) {
+        let valid = monsters.filter(m => m.hp > 0 && Math.hypot(m.x - char.x, m.y - char.y) <= range && m.digAnim <= 40);
+        if (char.type === 'bomber' || char.type === 'superlaser') valid = valid.filter(m => !m.hasBomb);
+        if(valid.length === 0) return null;
+        let turret = valid.find(m => m.type === 'enemyTurret');
+        return turret || valid[0];
+    }
+
+    function startTurn() {
+        if (isAnimating || towerHp <= 0 || isPlacing) return;
+        isAnimating = true; document.getElementById('nextBtn').disabled = true;
+        placedCharacters.forEach(c => { if(c.type==='hammer') c.animTimer = 0; });
+
+        monsters.forEach(m => {
+            if(m.hasBomb) {
+                m.bombTimer--;
+                if(m.bombTimer <= 0) {
+                    let blastRadius = 220; blastRings.push({x: m.x, y: m.y, radius: blastRadius, life: 30, maxLife: 30, color: '#ff8c00'});
+                    monsters.forEach(other => { if (Math.hypot(other.x - m.x, other.y - m.y) <= blastRadius) other.hp -= 2; });
+                    screenShake = 20; for(let i=0; i<50; i++) { let p = new Particle(m.x, m.y, "#ff8c00"); p.vx *= 1.5; p.vy *= 1.5; particles.push(p); }
+                    m.hasBomb = false;
+                }
+            }
+        });
+
+        let newTurrets = [];
+        monsters.forEach(m => {
+            m.hasDamagedThisTurn = false;
+            if (m.type === 'spiderBoss') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) { if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; } }
+                if (m.turnCounter % 3 === 0) {
+                    let validTargets = placedCharacters.filter(c => !c.dead && (c.type === 'gunslinger' || c.type === 'bomber' || c.type === 'superlaser' || c.type === 'hammer'));
+                    validTargets.sort(() => 0.5 - Math.random()); let targets = validTargets.slice(0, 10);
+                    targets.forEach(t => { t.isWebbed = true; gunTrails.push({ x1: m.x, y1: m.y, x2: t.x, y2: t.y, timer: 15, type: 'web' }); });
+                }
+            } else if (m.type === 'scorpionBoss') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) {
+                    if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+                }
+                
+                if (m.hp > m.maxHp / 2) {
+                    if (m.turnCounter % 3 === 0) {
+                        m.hp = Math.min(m.maxHp, m.hp + 15);
+                        scorpionBeams.push({x1: m.x + 20, y1: m.y - 30, x2: m.x, y2: m.y, timer: 15, type: 'heal'});
+                        textParticles.push(new TextParticle(m.x, m.y - 30, "+15 HP", "#00ff00"));
+                    }
+                } else {
+                    let targets = placedCharacters.filter(c => !c.dead);
+                    if (targets.length > 0) {
+                        let target = targets[Math.floor(Math.random() * targets.length)];
+                        target.dead = true;
+                        scorpionBeams.push({x1: m.x, y1: m.y, x2: target.x, y2: target.y, timer: 15, type: 'kill'});
+                        for(let i=0; i<30; i++) particles.push(new Particle(target.x, target.y, "#ff0000"));
+                        textParticles.push(new TextParticle(target.x, target.y - 20, "DESTROY!", "#ff0000"));
+                        screenShake = 15;
+                    }
+                }
+            } else if (m.type === 'frogBoss') {
+                m.turnCounter++;
+                if (m.turnCounter % 3 === 0) {
+                    m.lane = (m.lane + (Math.random() > 0.5 ? 1 : 2)) % 3; 
+                    m.targetAngle = laneAngles[m.lane];
+                    // ZIPLAMA HAZIRLIKLARI (DİREKT GEÇİŞ YERİNE)
+                    m.jumpProgress = 0;
+                    m.startAngle = m.angle;
+                    m.startDist = m.dist;
+                } else {
+                    let validTargets = placedCharacters.filter(c => !c.dead && ['gunslinger', 'bomber', 'hammer', 'superlaser'].includes(c.type));
+                    // EĞER ZIPLAMIYORSA VE DİLİ BOŞTAYSA SALDIRABİLİR
+                    if (validTargets.length > 0 && (m.tongueState === undefined || m.tongueState === 'idle')) {
+                        m.targetChar = validTargets[Math.floor(Math.random() * validTargets.length)];
+                        m.tongueState = 'out';
+                        m.tongueProgress = 0;
+                    }
+                }
+            } else if (m.type === 'caterpillarBoss') {
+                m.turnCounter++;
+                if (m.turnCounter % 4 === 0) {
+                    m.digAnim = 60; m.lane = (m.lane + (Math.random() > 0.5 ? 1 : 2)) % 3; m.targetAngle = laneAngles[m.lane];
+                } else if (m.turnCounter % 3 === 0) {
+                    if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+                }
+            } else if (m.type === 'lavaSnake') {
+                m.turnCounter++;
+                if (m.dist <= m.stopDist + 5) {
+                    if (m.turnCounter % 3 === 0) { m.slamPhase = 1; } 
+                } else {
+                    if (m.turnCounter % 3 === 2) {
+                        m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist;
+                    } else if (m.turnCounter % 3 === 0) {
+                        m.digAnim = 120; 
+                        let turret = new Monster('enemyTurret');
+                        turret.dist = m.dist; turret.targetDist = m.dist; turret.lane = m.lane; turret.angle = m.angle;
+                        turret.x = m.x; turret.y = m.y; newTurrets.push(turret);
+                        m.lane = (m.lane + (Math.random() > 0.5 ? 1 : 2)) % 3; m.targetAngle = laneAngles[m.lane];
+                    }
+                }
+            } else if (m.type === 'jammer') {
+                m.turnCounter++;
+                let valid = placedCharacters.filter(c => !c.dead && !c.isJammed && c.type !== 'ghost' && c.type !== 'bank');
+                if (valid.length > 0) {
+                    let target = valid[Math.floor(Math.random() * valid.length)];
+                    target.isJammed = true; m.jammedTargets.push(target);
+                    mageBeams.push({x1: m.x, y1: m.y-30, x2: target.x, y2: target.y, timer: 20, color: "#f77f00", width: 4});
+                }
+            } else if (m.type === 'witch') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) {
+                    let lanes = [0, 1, 2].filter(l => l !== m.lane);
+                    lanes.forEach(l => {
+                        let guard = new Monster('guard');
+                        guard.lane = l; guard.angle = laneAngles[l];
+                        guard.dist = m.dist; guard.targetDist = m.dist;
+                        newTurrets.push(guard); 
+                    });
+                    textParticles.push(new TextParticle(m.x, m.y - 30, "PROTECTION!", "#7b2cbf"));
+                }
+            } else if (m.type === 'guard') {
+                if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+            } else if (m.type === 'tank') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) {
+                    if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+                    mageBeams.push({x1: m.x, y1: m.y, x2: towerPos.x, y2: towerPos.y-50, timer: 15, color: "#ffff00", width: 4});
+                    towerHp -= 10; screenShake = 15;
+                    textParticles.push(new TextParticle(towerPos.x, towerPos.y-80, "-10 HP!", "#ff0000"));
+                    updateUI();
+                }
+            } else if (m.type === 'enemyTurret') {
+                towerHp -= 10; screenShake = 10;
+                mageBeams.push({x1: m.x, y1: m.y, x2: towerPos.x, y2: towerPos.y-50, timer: 15, color: "#00f5d4"});
+                textParticles.push(new TextParticle(towerPos.x, towerPos.y - 100, "-10 HP!", "#ff0000"));
+                updateUI();
+            } else if (m.type === 'lavaProf' || m.type === 'lavaMonster') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) {
+                    if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+                }
+            } else if (m.type === 'mage') {
+                m.turnCounter++;
+                if (m.turnCounter % 2 === 0) {
+                    mageBeams.push({x1: m.x+20, y1: m.y-35, x2: towerPos.x, y2: towerPos.y-50, timer: 15});
+                    towerHp -= 10; screenShake = 15;
+                    for(let i=0; i<20; i++) particles.push(new Particle(towerPos.x, towerPos.y-50, "#ff0000"));
+                    updateUI();
+                }
+            } else if (m.type === 'healer') {
+                m.turnCounter++;
+                if (m.turnCounter % 3 === 0) {
+                    let hurt = monsters.filter(other => other !== m && !isBoss(other) && other.hp < other.maxHp);
+                    if (hurt.length > 0) {
+                        let target = hurt[Math.floor(Math.random() * hurt.length)]; target.hp = target.maxHp;
+                        potions.push({x1: m.x, y1: m.y, x2: target.x, y2: target.y, timer: 25});
+                        textParticles.push(new TextParticle(target.x, target.y - 30, "FULL HP!", "#00ff00"));
+                    }
+                }
+                if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; }
+            } else {
+                if(m.waitingTurns > 0) { m.waitingTurns--; if(m.waitingTurns === 0) { m.targetDist = m.stopDist; m.willSlamUponArrival = true; } } 
+                else { if (m.dist <= m.stopDist + 5) { m.slamPhase = 1; } else { m.targetDist -= m.stepSize; if (m.targetDist <= m.stopDist) m.targetDist = m.stopDist; } }
+            }
+        });
+        monsters.push(...newTurrets); 
+
+        // Tank Kamikaze Check
+        monsters.forEach(m => {
+            if (m.type === 'tank' && m.dist <= m.stopDist + 10 && m.slamPhase > 0 && !m.selfDestructed) {
+                m.selfDestructed = true; m.hp = 0; towerHp -= 50; screenShake = 30;
+                textParticles.push(new TextParticle(towerPos.x, towerPos.y-100, "-50 (KAMIKAZE)!", "#ff0000"));
+                for(let i=0; i<40; i++) particles.push(new Particle(m.x, m.y, "#ff8c00"));
+            }
+        });
+
+        if (monsters.length > 0) {
+            let availableTargets = monsters.filter(m => m.hp > 0 && m.digAnim <= 40); 
+            if(availableTargets.length > 0) {
+                let currentSource = { x: towerPos.x, y: towerPos.y - 170 };
+                let nearestIdx = -1; let minDist = Infinity;
+                for (let j = 0; j < availableTargets.length; j++) { let d = Math.hypot(availableTargets[j].x - currentSource.x, availableTargets[j].y - currentSource.y); if (d < minDist) { minDist = d; nearestIdx = j; } }
+                if (nearestIdx !== -1) { let t = availableTargets[nearestIdx]; lightningTrails.push({ x1: currentSource.x, y1: currentSource.y, x2: t.x, y2: t.y, timer: 12 }); t.hp -= towerDmg; }
+            }
+        }
+
+        placedCharacters.forEach(char => {
+            if (char.dead) return;
+            if (char.isWebbed) { textParticles.push(new TextParticle(char.x, char.y - 30, "Caught in a Spider's Web!", "#ff0054")); char.isWebbed = false; return; }
+
+            if (char.isJammed) return;
+
+            if (char.type === 'bank') {
+                if (char.activeInvestment > 0) {
+                    char.activeInvestment--;
+                    if (char.activeInvestment === 0) { money += 60; textParticles.push(new TextParticle(char.x, char.y - 30, "+60", "#00ff00")); }
+                }
+            }
+            else if (char.type === 'superlaser') {
+                let target = getPriorityTarget(char, char.range);
+                if (target) {
+                    gunTrails.push({ x1: char.x, y1: char.y - 25, x2: target.x, y2: target.y, timer: 40, type: 'superlaser' });
+                }
+            }
+            else if (char.type === 'hammer') {
+                let target = getPriorityTarget(char, char.range);
+                if (target) {
+                    char.animTimer = 15;
+                    target.hp -= char.dmg;
+                    let blastRadius = 250; 
+                    blastRings.push({x: target.x, y: target.y, radius: blastRadius, life: 15, maxLife: 15, color: '#aaaaaa'});
+                    monsters.forEach(other => { if (other !== target && Math.hypot(other.x - target.x, other.y - target.y) <= blastRadius && other.digAnim <= 40) { other.hp -= 2; } });
+                    screenShake = 5;
+                }
+            }
+            else if (char.type === 'gunslinger') { 
+                let target = getPriorityTarget(char, char.range); 
+                if (target) { target.hp -= char.dmg; gunTrails.push({ x1: char.x + 10, y1: char.y - 15, x2: target.x, y2: target.y, timer: 15, type: 'gun' }); } 
+            } 
+            else if (char.type === 'bomber') { 
+                if (char.cooldown > 0) { char.cooldown--; } 
+                else { 
+                    let target = getPriorityTarget(char, char.range); 
+                    if (target) { target.hasBomb = true; target.bombTimer = 1; gunTrails.push({ x1: char.x, y1: char.y - 20, x2: target.x, y2: target.y, timer: 15, type: 'bomb' }); char.cooldown = 1; } 
+                } 
+            }
+            else if (char.type === 'ghost' && char.state !== 'attacking') { 
+                let target = monsters.find(m => m.hp > 0 && !isBoss(m) && Math.hypot(m.x - char.x, m.y - char.y) <= char.range && m.digAnim <= 40); 
+                if (target) { char.state = 'attacking'; char.targetMonster = target; } 
+            }
+        });
+
+        setTimeout(() => {
+            placedCharacters = placedCharacters.filter(c => !c.dead);
+            checkDeaths(); 
+
+            let MathFloor = Math.floor;
+            
+            // ============== TAM İSTEDİĞİN BOSS GELİŞ TUR SIRALAMASI ==============
+            if (level === 1) {
+                let spawnCount = MathFloor(turn / 8) + 1; 
+                if (turn === 3 && !cardsShown.boss) { showCard('boss'); cardsShown.boss = true; monsters.push(new Monster('boss')); } 
+                else if (turn === 5 && !cardsShown.red) { showCard('red'); cardsShown.red = true; monsters.push(new Monster('red')); } 
+                else if (turn === 50 && !cardsShown.spider) { showCard('spiderBoss'); cardsShown.spider = true; monsters.push(new Monster('spiderBoss')); }
+                else { 
+                    for(let i = 0; i < spawnCount; i++) { 
+                        let rand = Math.random(); let spawnType = 'green';
+                        let bossChance = Math.min(0.15, turn * 0.005); let redChance = Math.min(0.25, turn * 0.010);  
+                        if (cardsShown.boss && rand < bossChance) spawnType = 'boss'; else if (cardsShown.red && rand < bossChance + redChance) spawnType = 'red';
+                        monsters.push(new Monster(spawnType)); 
+                    } 
+                }
+            } else if (level === 2) {
+                let spawnCount = MathFloor(turn / 6) + 1; 
+                if (turn === 3 && !cardsShown.healer) { showCard('healer'); cardsShown.healer = true; monsters.push(new Monster('healer')); }
+                else if (turn === 6 && !cardsShown.mage) { showCard('mage'); cardsShown.mage = true; monsters.push(new Monster('mage')); }
+                else if (turn === 30 && !cardsShown.caterpillar) { showCard('caterpillarBoss'); cardsShown.caterpillar = true; monsters.push(new Monster('caterpillarBoss')); }
+                else {
+                    for(let i = 0; i < spawnCount; i++) { 
+                        let rand = Math.random(); let spawnType = 'green';
+                        if (cardsShown.mage && rand < 0.15) spawnType = 'mage';
+                        else if (cardsShown.healer && rand < 0.30) spawnType = 'healer';
+                        else if (rand < 0.45) spawnType = 'red';
+                        else if (rand < 0.60) spawnType = 'boss';
+                        monsters.push(new Monster(spawnType)); 
+                    } 
+                }
+            } else if (level === 3) {
+                let spawnCount = MathFloor(turn / 5) + 2; 
+                if (turn === 3 && !cardsShown.lavaProf) { showCard('lavaProf'); cardsShown.lavaProf = true; monsters.push(new Monster('lavaProf')); }
+                else if (turn === 30 && !cardsShown.lavaSnake) { showCard('lavaSnake'); cardsShown.lavaSnake = true; monsters.push(new Monster('lavaSnake')); }
+                else {
+                    for(let i = 0; i < spawnCount; i++) { 
+                        let rand = Math.random(); let spawnType = 'green';
+                        if (cardsShown.lavaProf && rand < 0.20) spawnType = 'lavaProf';
+                        else if (rand < 0.35) spawnType = 'mage';
+                        else if (rand < 0.50) spawnType = 'healer';
+                        else if (rand < 0.65) spawnType = 'red';
+                        else if (rand < 0.80) spawnType = 'boss';
+                        monsters.push(new Monster(spawnType)); 
+                    } 
+                }
+            } else if (level === 4) {
+                let spawnCount = MathFloor(turn / 4) + 2; 
+                if (turn === 3 && !cardsShown.tank) { showCard('tank'); cardsShown.tank = true; monsters.push(new Monster('tank')); }
+                else if (turn === 30 && !cardsShown.scorpion) { showCard('scorpionBoss'); cardsShown.scorpion = true; monsters.push(new Monster('scorpionBoss')); }
+                else {
+                    for(let i = 0; i < spawnCount; i++) { 
+                        let rand = Math.random(); let spawnType = 'green';
+                        if (cardsShown.tank && rand < 0.25) spawnType = 'tank';
+                        else if (rand < 0.40) spawnType = 'mage';
+                        else if (rand < 0.60) spawnType = 'red';
+                        else if (rand < 0.80) spawnType = 'boss';
+                        monsters.push(new Monster(spawnType)); 
+                    } 
+                }
+            } else if (level === 5) {
+                let spawnCount = MathFloor(turn / 10) + 1; 
+                if (turn === 3 && !cardsShown.jammer) { showCard('jammer'); cardsShown.jammer = true; monsters.push(new Monster('jammer')); }
+                else if (turn === 6 && !cardsShown.witch) { showCard('witch'); cardsShown.witch = true; monsters.push(new Monster('witch')); }
+                else if (turn === 20 && !cardsShown.frog) { showCard('frogBoss'); cardsShown.frog = true; monsters.push(new Monster('frogBoss')); }
+                else {
+                    for(let i = 0; i < spawnCount; i++) { 
+                        let rand = Math.random(); let spawnType = 'green';
+                        if (cardsShown.jammer && rand < 0.15) spawnType = 'jammer';
+                        else if (cardsShown.witch && rand < 0.30) spawnType = 'witch';
+                        else if (rand < 0.50) spawnType = 'tank';
+                        else if (rand < 0.70) spawnType = 'mage';
+                        else spawnType = 'boss';
+                        monsters.push(new Monster(spawnType)); 
+                    } 
+                }
+            }
+
+            turn++; isAnimating = false; document.getElementById('nextBtn').disabled = false; updateUI();
+        }, 1500);
+    }
+
+    function updateUI() { 
+        document.getElementById('levelText').innerText = level;
+        document.getElementById('moneyText').innerText = money;
+        document.getElementById('hpText').innerText = Math.max(0, towerHp); 
+        document.getElementById('turnText').innerText = turn;
+    }
+
+    function loop() { drawScene(); requestAnimationFrame(loop); }
+</script>
+</body>
+</html>

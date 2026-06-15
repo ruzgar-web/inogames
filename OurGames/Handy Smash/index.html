@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Handy Smash</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Arial Black', Arial, sans-serif;
+      background: #0f172a;
+    }
+    canvas {
+      display: block;
+    }
+    #scoreboard {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 36px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 3px 3px 8px rgba(0,0,0,0.9);
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8));
+      padding: 12px 35px;
+      border-radius: 25px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      z-index: 10;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    #instructions {
+      position: absolute;
+      bottom: 15px;
+      width: 100%;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 16px;
+      text-shadow: 2px 2px 4px black;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="scoreboard">Blue: 0 | Red: 0</div>
+  <div id="instructions">BLUE: W, A, D | RED: Arrow Keys • It automatically hits the ball when you get close to it!</div>
+  <canvas id="gameCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreboard = document.getElementById('scoreboard');
+
+    // Gelişmiş Şaplak Ses Motoru
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSlapSound() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      // Tokatın "et" çarpma sesi için sinüs dalgası
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(280, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.12);
+      
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.12);
+
+      // Tokatın "şlap" kırbaç etkisi için beyaz gürültü (Beyaz Noise)
+      const bufferSize = audioCtx.sampleRate * 0.05;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = audioCtx.createGain();
+      
+      // Yüksek frekansları filtreleyerek tok sesi netleştirme
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+      
+      noiseGain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      
+      noise.start();
+      noise.stop(audioCtx.currentTime + 0.05);
+    }
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+
+    let score1 = 0;
+    let score2 = 0;
+    const gravity = 0.55;
+    let slapEffects = [];
+
+    // 3D Detaylı Karakter Tasarımları
+    const player1 = {
+      x: 200,
+      y: canvas.height - 150,
+      width: 90,
+      height: 90,
+      color: '#1e40af', // Derin Mavi
+      lightColor: '#3b82f6',
+      dx: 0,
+      dy: 0,
+      speed: 8.5,
+      jump: -14.5,
+      onGround: true,
+      slapTimer: 0,
+      slapCooldown: 0,
+      direction: 1 
+    };
+
+    const player2 = {
+      x: canvas.width - 290,
+      y: canvas.height - 150,
+      width: 90,
+      height: 90,
+      color: '#991b1b', // Derin Kırmızı
+      lightColor: '#ef4444',
+      dx: 0,
+      dy: 0,
+      speed: 8.5,
+      jump: -14.5,
+      onGround: true,
+      slapTimer: 0,
+      slapCooldown: 0,
+      direction: -1 
+    };
+
+    const ball = {
+      x: canvas.width / 2,
+      y: 180,
+      radius: 26,
+      dx: 4,
+      dy: 2,
+      rotation: 0
+    };
+
+    const keys = {};
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    // Parmakları ve yapısı belli olan gerçekçi tokat eli çizimi
+    function drawDetailedHand(p, centerX, centerY, angle) {
+      ctx.save();
+      ctx.translate(centerX, centerY + 15);
+      ctx.rotate(angle);
+
+      // Elin oyuncuya olan uzaklığı mesafe ayarı
+      const handDist = 50 * p.direction;
+      ctx.translate(handDist, -10);
+
+      // Yönüne göre eli simetrik çevir
+      if (p.direction === -1) {
+        ctx.scale(-1, 1);
+      }
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#000000';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // 3D Hacim için El Ayası (Palm) Gölgelendirmesi
+      let handGrad = ctx.createRadialGradient(-5, 0, 2, 0, 0, 18);
+      handGrad.addColorStop(0, '#ffebd6');
+      handGrad.addColorStop(1, '#e0a98c'); // Ten rengi tonları
+      ctx.fillStyle = handGrad;
+
+      // Avuç içi çizimi
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // 4 Adet Açık Parmak Çizimi (Tokat Pozisyonu)
+      const fingerPositions = [-9, -3, 3, 9];
+      const fingerLengths = [20, 24, 22, 18]; // Orta parmak daha uzun
+
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = '#ffebd6';
+        ctx.beginPath();
+        // Parmak boğumu oval hatları
+        ctx.roundRect(fingerPositions[i] - 3, -30 - (fingerLengths[i] - 20), 6, fingerLengths[i], 4);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Baş Parmak (Yanda kıvrık)
+      ctx.beginPath();
+      ctx.roundRect(10, -5, 12, 6, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 3D Küre Görünümlü Karakter Çizimi
+    function draw3DPlayer(p) {
+      const centerX = p.x + p.width / 2;
+      const centerY = p.y + p.height / 2;
+
+      // Yer gölgesi derinliği arttırır
+      ctx.beginPath();
+      ctx.ellipse(centerX, canvas.height - 125, p.width * 0.4, 10, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fill();
+
+      // 3D Işık Kırılmalı Radial Kafa Gölgelendirmesi
+      let headGrad = ctx.createRadialGradient(
+        centerX - (p.direction * p.width * 0.15), 
+        centerY - (p.height * 0.15), 
+        5, 
+        centerX, 
+        centerY, 
+        p.width / 2
+      );
+      headGrad.addColorStop(0, '#ffffff');
+      headGrad.addColorStop(0.2, p.lightColor);
+      headGrad.addColorStop(1, p.color);
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, p.width / 2, 0, Math.PI * 2);
+      ctx.fillStyle = headGrad;
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+
+      // Detaylı Karakter Gözleri
+      const eyeX = centerX + (p.direction * 18);
+      const eyeY = centerY - 8;
+      
+      // Beyaz küre
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.stroke();
+
+      // Göz bebeği (Topa odaklanmış)
+      const angleToBall = Math.atan2(ball.y - eyeY, ball.x - eyeX);
+      const pupilX = eyeX + Math.cos(angleToBall) * 5;
+      const pupilY = eyeY + Math.sin(angleToBall) * 5;
+
+      ctx.beginPath();
+      ctx.arc(pupilX, pupilY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+
+      // Karakter Ağzı (Hırslı ifade)
+      ctx.beginPath();
+      if (p.isSlapping) {
+        ctx.arc(eyeX - (p.direction * 5), centerY + 18, 8, 0, Math.PI, true);
+      } else {
+        ctx.moveTo(eyeX - 10, centerY + 16);
+        ctx.lineTo(eyeX + 10, centerY + 19);
+      }
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+
+      // Otomatik Şaplak Kol/El Animasyon Açısı Belirleme
+      let swingAngle = 0;
+      if (p.slapTimer > 0) {
+        const progress = (20 - p.slapTimer) / 20; 
+        // Eli arkaya alıp öne doğru sertçe savurma hareketi
+        swingAngle = Math.sin(progress * Math.PI * 1.5) * -1.2 * p.direction;
+        p.slapTimer--;
+        if (p.slapTimer === 0) p.isSlapping = false;
+      }
+      if (p.slapCooldown > 0) p.slapCooldown--;
+
+      // Gerçek Şaplak Elini Çizdir
+      drawDetailedHand(p, centerX, centerY, swingAngle);
+    }
+
+    // 3D Gölgeli Top Çizimi
+    function draw3DBall() {
+      // Topun yerdeki gölgesi
+      const groundY = canvas.height - 125;
+      const shadowScale = Math.max(0.2, 1 - (groundY - ball.y) / 400);
+      ctx.beginPath();
+      ctx.ellipse(ball.x, groundY, ball.radius * shadowScale * 1.5, ball.radius * shadowScale * 0.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fill();
+
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+      ctx.rotate(ball.rotation);
+
+      // 3D Küre Efekti Gradients
+      let ballGrad = ctx.createRadialGradient(-6, -6, 2, 0, 0, ball.radius);
+      ballGrad.addColorStop(0, '#ffffff');
+      ballGrad.addColorStop(0.8, '#e2e8f0');
+      ballGrad.addColorStop(1, '#94a3b8');
+
+      ctx.beginPath();
+      ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = ballGrad;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+
+      // Futbol Çizgileri
+      ctx.beginPath();
+      ctx.lineWidth = 2;
+      ctx.arc(0, 0, ball.radius * 0.6, 0, Math.PI, true);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-ball.radius*0.6, 0); ctx.lineTo(-ball.radius, 0);
+      ctx.moveTo(ball.radius*0.6, 0); ctx.lineTo(ball.radius, 0);
+      ctx.moveTo(0, -ball.radius*0.6); ctx.lineTo(0, -ball.radius);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 3 BOYUTLU PERSPEKTİFLİ KALE ÇİZİMLERİ (Çizgili File Görünümü Dahil)
+    function draw3DGoals() {
+      const fieldTop = canvas.height - 130;
+      const w = canvas.width;
+      
+      ctx.save();
+      ctx.lineWidth = 6;
+      ctx.lineJoin = 'round';
+
+      // --- SOL KALE (3D Derinlik ve Çizgili File) ---
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, fieldTop - 250);
+      ctx.lineTo(90, fieldTop - 230);
+      ctx.lineTo(90, fieldTop);
+      ctx.lineTo(0, fieldTop);
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+      ctx.fill();
+      ctx.clip(); // Fileyi sadece bu arka panel sınırları içine çiz
+
+      // Sol Kale Çizgili File Görünümü
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 2;
+      for (let x = 0; x <= 100; x += 15) {
+        ctx.beginPath(); ctx.moveTo(x, fieldTop - 260); ctx.lineTo(x, fieldTop); ctx.stroke();
+      }
+      for (let y = fieldTop - 260; y <= fieldTop; y += 15) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(100, y); ctx.stroke();
+      }
+      ctx.restore();
+
+      // Sol Kale Ön Ana Direkler (Parlak Beyaz çerçeve)
+      ctx.strokeStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0, fieldTop);
+      ctx.lineTo(130, fieldTop); 
+      ctx.lineTo(130, fieldTop - 260); 
+      ctx.lineTo(0, fieldTop - 260); 
+      ctx.stroke();
+
+      // Sol Yan ve Üst Derinlik Bağlantıları
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(130, fieldTop - 260); ctx.lineTo(90, fieldTop - 230);
+      ctx.stroke();
+
+
+      // --- SAĞ KALE (3D Derinlik ve Çizgili File) ---
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(w, fieldTop - 250);
+      ctx.lineTo(w - 90, fieldTop - 230);
+      ctx.lineTo(w - 90, fieldTop);
+      ctx.lineTo(w, fieldTop);
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+      ctx.fill();
+      ctx.clip(); // Fileyi sadece sağ arka panel sınırları içine çiz
+
+      // Sağ Kale Çizgili File Görünümü
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 2;
+      for (let x = w - 100; x <= w; x += 15) {
+        ctx.beginPath(); ctx.moveTo(x, fieldTop - 260); ctx.lineTo(x, fieldTop); ctx.stroke();
+      }
+      for (let y = fieldTop - 260; y <= fieldTop; y += 15) {
+        ctx.beginPath(); ctx.moveTo(w - 100, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+      ctx.restore();
+
+      // Sağ Ön Direkler
+      ctx.strokeStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(w, fieldTop);
+      ctx.lineTo(w - 130, fieldTop);
+      ctx.lineTo(w - 130, fieldTop - 260);
+      ctx.lineTo(w, fieldTop - 260);
+      ctx.stroke();
+
+      // Sağ Yan ve Üst Derinlik Bağlantıları
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.moveTo(w - 130, fieldTop - 260); ctx.lineTo(w - 90, fieldTop - 230);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawField() {
+      const fieldTop = canvas.height - 130;
+
+      // --- 1. GÖKYÜZÜ (Açık - Orta Mavi Tonlarında Gradient) ---
+      let skyGrad = ctx.createLinearGradient(0, 0, 0, fieldTop);
+      skyGrad.addColorStop(0, '#bae6fd');   // Açık Gökyüzü Mavisi
+      skyGrad.addColorStop(0.5, '#60a5fa'); // Orta Canlı Mavi
+      skyGrad.addColorStop(1, '#2563eb');   // Tok Orta Mavi
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvas.width, fieldTop);
+
+      // --- 2. ARKA PLANA SEYİRCİLER VE TRİBÜN EKLEME ---
+      const standsTop = fieldTop - 110;
+      // Tribün Beton Bloğu
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, standsTop, canvas.width, 110);
+
+      // Tribün Kat Çizgileri ve Seyirciler
+      for (let row = 0; row < 4; row++) {
+        let rowY = standsTop + (row * 28);
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, rowY);
+        ctx.lineTo(canvas.width, rowY);
+        ctx.stroke();
+
+        // Yan yana dizilmiş piksel tarzı taraftarlar
+        for (let x = 15; x < canvas.width; x += 22) {
+          let seed = (x + row * 7) % 5;
+          let fanColor = '#ef4444'; // Kırmızı taraftar
+          if (seed === 1) fanColor = '#3b82f6'; // Mavi taraftar
+          if (seed === 2) fanColor = '#f59e0b'; // Sarı taraftar
+          if (seed === 3) fanColor = '#10b981'; // Yeşil taraftar
+          if (seed === 4) fanColor = '#ffffff'; // Beyaz taraftar
+
+          // Seyirci Kıyafeti/Gövdesi
+          ctx.fillStyle = fanColor;
+          ctx.beginPath();
+          ctx.arc(x, rowY - 4, 7, Math.PI, 0);
+          ctx.fill();
+
+          // Seyirci Kafası
+          ctx.fillStyle = '#ffdbac';
+          ctx.beginPath();
+          ctx.arc(x, rowY - 10, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // --- 3. OYUN ALANI VE SAHA ---
+      ctx.fillStyle = '#15803d';
+      ctx.fillRect(0, fieldTop, canvas.width, 130);
+
+      // Çimen Çizgileri
+      ctx.fillStyle = '#166534';
+      for (let i = fieldTop; i < canvas.height; i += 26) {
+        ctx.fillRect(0, i, canvas.width, 13);
+      }
+
+      // Saha Çizgileri
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, fieldTop);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, fieldTop + 65, 70, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Çizgi Roman Tarzı Şaplak Efektleri Patlaması
+    function createSlapEffect(x, y, color) {
+      slapEffects.push({
+        x: x, y: y, radius: 15, alpha: 1, color: color,
+        textX: x + (Math.random() * 40 - 20),
+        textY: y - 50,
+        rot: (Math.random() - 0.5) * 0.4
+      });
+    }
+
+    function drawSlapEffects() {
+      for (let i = slapEffects.length - 1; i >= 0; i--) {
+        let effect = slapEffects[i];
+        ctx.save();
+        ctx.globalAlpha = effect.alpha;
+
+        // Enerji şimşek hatları
+        ctx.strokeStyle = effect.color;
+        ctx.lineWidth = 5;
+        for (let j = 0; j < 10; j++) {
+          let angle = (j * Math.PI) / 5 + effect.rot;
+          ctx.beginPath();
+          ctx.moveTo(effect.x + Math.cos(angle) * effect.radius * 0.4, effect.y + Math.sin(angle) * effect.radius * 0.4);
+          ctx.lineTo(effect.x + Math.cos(angle) * effect.radius, effect.y + Math.sin(angle) * effect.radius);
+          ctx.stroke();
+        }
+
+        // SLAP! Yazısı
+        ctx.translate(effect.textX, effect.textY);
+        ctx.rotate(effect.rot);
+        ctx.font = "italic bold 42px 'Arial Black'";
+        ctx.fillStyle = '#fde047'; // Altın sarısı parlaması
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 6;
+        ctx.strokeText("SLAP!", -70, 0);
+        ctx.fillText("SLAP!", -70, 0);
+
+        ctx.restore();
+
+        effect.radius += 6;
+        effect.alpha -= 0.045;
+        if (effect.alpha <= 0) slapEffects.splice(i, 1);
+      }
+    }
+
+    function movePlayer(p, controls, leftLimit, rightLimit) {
+      p.dx = 0;
+      if (keys[controls.left]) { p.dx = -p.speed; p.direction = -1; }
+      if (keys[controls.right]) { p.dx = p.speed; p.direction = 1; }
+      if (keys[controls.jump] && p.onGround) {
+        p.dy = p.jump;
+        p.onGround = false;
+      }
+
+      // --- OTOMATİK ŞAPLAK SİSTEMİ MANTIĞI ---
+      const handX = p.x + p.width/2 + (55 * p.direction);
+      const handY = p.y + p.height/2;
+      const distanceToBall = Math.hypot(ball.x - handX, ball.y - handY);
+
+      if (distanceToBall < ball.radius + 55 && !p.isSlapping && p.slapCooldown === 0) {
+        p.isSlapping = true;
+        p.slapTimer = 20; 
+        p.slapCooldown = 25; 
+        
+        playSlapSound();
+        createSlapEffect(ball.x, ball.y, p.lightColor);
+
+        ball.dx = 16 * p.direction;
+        ball.dy = -11;
+      }
+
+      p.x += p.dx;
+      p.dy += gravity;
+      p.y += p.dy;
+
+      const groundLimit = canvas.height - 130 - p.height;
+      if (p.y >= groundLimit) {
+        p.y = groundLimit;
+        p.dy = 0;
+        p.onGround = true;
+      }
+
+      if (p.x < leftLimit) p.x = leftLimit;
+      if (p.x > rightLimit - p.width) p.x = rightLimit - p.width;
+    }
+
+    function checkPassiveBodyCollision(p) {
+      const centerX = p.x + p.width / 2;
+      const centerY = p.y + p.height / 2;
+      const dist = Math.hypot(ball.x - centerX, ball.y - centerY);
+
+      if (dist < ball.radius + p.width / 2) {
+        ball.dx = (ball.x - centerX) * 0.35;
+        ball.dy = (ball.y - centerY) * 0.35 - 4;
+      }
+    }
+
+    function updateBall() {
+      ball.dy += gravity;
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+      
+      ball.rotation += ball.dx * 0.04;
+
+      const fieldTop = canvas.height - 130;
+
+      if (ball.y + ball.radius > fieldTop) {
+        ball.y = fieldTop - ball.radius;
+        ball.dy *= -0.72;
+        ball.dx *= 0.97; 
+      }
+
+      if (ball.y - ball.radius < 0) {
+        ball.y = ball.radius;
+        ball.dy *= -1;
+      }
+
+      if (ball.y > fieldTop - 260) {
+        if (ball.x < 130) {
+          if (ball.x - ball.radius <= 15) {
+            score2++;
+            resetPositions();
+          }
+        }
+        if (ball.x > canvas.width - 130) {
+          if (ball.x + ball.radius >= canvas.width - 15) {
+            score1++;
+            resetPositions();
+          }
+        }
+      }
+
+      if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+        ball.dx *= -0.85;
+      }
+
+      if (
+        player1.x < player2.x + player2.width &&
+        player1.x + player1.width > player2.x &&
+        player1.y < player2.y + player2.height &&
+        player1.y + player1.height > player2.y
+      ) {
+        if (player1.x < player2.x) {
+          player1.x -= 4; player2.x += 4;
+        } else {
+          player1.x += 4; player2.x -= 4;
+        }
+      }
+
+      checkPassiveBodyCollision(player1);
+      checkPassiveBodyCollision(player2);
+
+      scoreboard.textContent = `Blue: ${score1} | Red: ${score2}`;
+    }
+
+    function resetPositions() {
+      player1.x = 200;
+      player2.x = canvas.width - 290;
+      player1.y = player2.y = canvas.height - 130 - player1.height;
+      player1.direction = 1;
+      player2.direction = -1;
+      player1.slapTimer = player2.slapTimer = 0;
+      player1.isSlapping = player2.isSlapping = false;
+      
+      ball.x = canvas.width / 2;
+      ball.y = 160;
+      ball.dx = Math.random() > 0.5 ? 4 : -4;
+      ball.dy = 0;
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      drawField();
+      draw3DGoals();
+
+      movePlayer(player1, {left:'a', right:'d', jump:'w'}, 0, canvas.width);
+      movePlayer(player2, {left:'arrowleft', right:'arrowright', jump:'arrowup'}, 0, canvas.width);
+
+      updateBall();
+
+      draw3DPlayer(player1);
+      draw3DPlayer(player2);
+      draw3DBall();
+      drawSlapEffects();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      resetPositions();
+    });
+  </script>
+</body>
+</html>
